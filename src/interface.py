@@ -21,6 +21,7 @@ from langchain_community.llms.ollama import Ollama
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from serpapi import GoogleSearch
+from utils.check_serp_response import APIKeyManager
 
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
@@ -32,7 +33,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-serpapi_key = '8f7a24637047a7906eb5e0b4780d849c0ef50e0ebac4127091ee45773a3b3f17'
+serpapi_key_manager = APIKeyManager()
+serpapi_key_name, serpapi_key = serpapi_key_manager.get_best_api_key()
+# serpapi_key = '8f7a24637047a7906eb5e0b4780d849c0ef50e0ebac4127091ee45773a3b3f17'
 
 def search_map(q, coordinates):
     # Проверяем, есть ли координаты и их значения
