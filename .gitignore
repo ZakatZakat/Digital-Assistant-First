@@ -1,0 +1,7 @@
+.DS_Store
+.venv
+content/gloabal_text.txt
+.env
+checkpoints
+src/__pycache__
+notebooks/my_notes

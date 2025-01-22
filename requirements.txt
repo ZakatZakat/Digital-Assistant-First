@@ -1,0 +1,9 @@
+requests==2.32.3
+pydantic==2.9.2
+ollama==0.3.3
+fastapi[standard]
+langchain_community==0.3.1
+huggingface_hub==0.25.1
+sentence-transformers==3.1.1
+faiss-cpu==1.9.0
+python-dotenv==1.0.1
