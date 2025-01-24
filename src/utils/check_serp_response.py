@@ -32,7 +32,7 @@ def check_api_keys(path_to_file="../../api_keys_status.xlsx"):
                     )
 
                 # if some problems with api
-                # sleep(0.2)
+                # sleep(0.1)
 
             except Exception as e:
                 print(f"Error checking {key_name}: {str(e)}")
@@ -43,10 +43,10 @@ def check_api_keys(path_to_file="../../api_keys_status.xlsx"):
     return df
 
 class APIKeyManager:
-    def __init__(self):
+    def __init__(self, path_to_file="../../api_keys_status.xlsx"):
         self.scheduler = BackgroundScheduler()
         self.start_scheduler()
-        self.path_to_file = "../../api_keys_status.xlsx"
+        self.path_to_file = path_to_file
 
     def start_scheduler(self):
         """Starts the scheduler with an update every hour"""
