@@ -7,16 +7,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from typing import Optional
 
-def check_api_keys(path_to_file="../../api_keys_status.xlsx"):
+def check_api_keys(path_to_file="api_keys_status.xlsx"):
     load_dotenv()
 
     # Read the existing data
     df = pd.read_excel(path_to_file)
 
     for index, row in df.iterrows():
-        key_name = row['Name']
-        api_key = os.getenv(key_name)
-
+        api_key = row['API Key']
+        
         if api_key:
             try:
                 response = requests.get(
@@ -28,22 +27,22 @@ def check_api_keys(path_to_file="../../api_keys_status.xlsx"):
                     df.at[index, 'Status'] = data["total_searches_left"]
                 else:
                     print(
-                        f"Error checking {key_name}: status {response.status_code}"
+                        f"Error checking {api_key}: status {response.status_code}"
                     )
 
                 # if some problems with api
                 # sleep(0.1)
 
             except Exception as e:
-                print(f"Error checking {key_name}: {str(e)}")
+                print(f"Error checking {api_key}: {str(e)}")
 
     # Save the updated data back to the file
     df.to_excel(path_to_file, index=False)
-
+    print(df)
     return df
 
 class APIKeyManager:
-    def __init__(self, path_to_file="../../api_keys_status.xlsx"):
+    def __init__(self, path_to_file="api_keys_status.xlsx"):
         self.scheduler = BackgroundScheduler()
         self.start_scheduler()
         self.path_to_file = path_to_file
