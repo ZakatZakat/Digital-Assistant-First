@@ -3,13 +3,14 @@ import pandas as pd
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder
 
-st.title("API Keys Status Checker")
-st.write("This app allows you to view and update the status of your API keys.")
+# Заголовок приложения
+st.title("Проверка статуса API-ключей")
+st.write("Это приложение позволяет просматривать и обновлять статус ваших API-ключей.")
 
-# Load the initial DataFrame
+# Загрузка начального DataFrame
 df = check_api_keys('api_keys_status.xlsx')
 
-# Display the current table
+# Отображение текущей таблицы
 gb = GridOptionsBuilder.from_dataframe(df)
 gb.configure_default_column(min_column_width=100)
 gb.configure_grid_options(domLayout='normal')
@@ -25,36 +26,36 @@ AgGrid(
     key="initial_grid"
 )
 
-# Section to add new values to the table
-st.subheader("Add New Entry")
+# Раздел для добавления новых записей
+st.subheader("Добавить новую запись")
 
-# Input fields for new data
-new_name = st.text_input("Name")
+# Поля ввода для новых данных
+new_name = st.text_input("Имя")
 new_email = st.text_input("Email")
-new_api_key = st.text_input("API Key")
-new_number = st.number_input("Number", min_value=0)
+new_api_key = st.text_input("API-ключ")
+new_number = st.number_input("Номер", min_value=0)
 
-# Button to add new data
-if st.button('Add New Entry'):
-    if new_name and new_email and new_api_key:  # Ensure required fields are not empty
+# Кнопка для добавления новой записи
+if st.button('Добавить новую запись'):
+    if new_name and new_email and new_api_key:  # Проверка, что обязательные поля заполнены
         new_row = {
-            'Name': new_name,
+            'Имя': new_name,
             'Email': new_email,
-            'API Key': new_api_key,
-            'Number': new_number
+            'API-ключ': new_api_key,
+            'Номер': new_number
         }
-        # Create a new DataFrame for the new row
+        # Создание нового DataFrame для новой строки
         new_df = pd.DataFrame([new_row])
         
-        # Concatenate the new row with the existing DataFrame
+        # Объединение новой строки с существующим DataFrame
         df = pd.concat([df, new_df], ignore_index=True)
         
-        # Save the updated DataFrame back to the Excel file (or any other storage)
+        # Сохранение обновленного DataFrame в файл Excel (или другое хранилище)
         df.to_excel('api_keys_status.xlsx', index=False)
         
-        st.success("New entry added successfully!")
+        st.success("Новая запись успешно добавлена!")
         
-        # Display the updated table
+        # Отображение обновленной таблицы
         AgGrid(
             df,
             gridOptions=grid_options,
@@ -65,10 +66,10 @@ if st.button('Add New Entry'):
             key="updated_grid"
         )
     else:
-        st.error("Please fill in all required fields (Name, Email, API Key).")
+        st.error("Пожалуйста, заполните все обязательные поля (Имя, Email, API-ключ).")
 
-# Button to update the status of existing API keys
-if st.button('Update API status'):
+# Кнопка для обновления статуса API-ключей
+if st.button('Обновить статус API'):
     df = check_api_keys('api_keys_status.xlsx')
     
     AgGrid(
