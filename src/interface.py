@@ -34,8 +34,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
-serpapi_key_name, serpapi_key = serpapi_key_manager.get_best_api_key()
-print('выбран ключ', serpapi_key)
+# serpapi_key_name, serpapi_key = serpapi_key_manager.get_best_api_key()
+# print('выбран ключ', serpapi_key)
 # serpapi_key = '8f7a24637047a7906eb5e0b4780d849c0ef50e0ebac4127091ee45773a3b3f17'
 
 def search_map(q, coordinates):
@@ -51,6 +51,7 @@ def search_map(q, coordinates):
     ll = f"@{latitude},{longitude},{zoom_level}"
 
     # Параметры запроса
+    _, serpapi_key = serpapi_key_manager.get_best_api_key()
     params = {
         "engine": "google_maps",
         "q": q,
@@ -78,6 +79,7 @@ def search_map(q, coordinates):
 
 
 def search_shopping(q):
+    _, serpapi_key = serpapi_key_manager.get_best_api_key()
     params = {
         "engine": "google_shopping",
         "q": q,
@@ -95,6 +97,7 @@ def search_shopping(q):
 
 def search_places(q):
     """Search for places using Google Search API, возвращает только первые 5 результатов."""
+    _, serpapi_key = serpapi_key_manager.get_best_api_key()
     params = {
         "q": q,
         #'location': 'Russia',

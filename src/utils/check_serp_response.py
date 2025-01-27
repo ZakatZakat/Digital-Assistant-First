@@ -52,7 +52,7 @@ class APIKeyManager:
         self.scheduler.add_job(
             check_api_keys,
             'interval',
-            hours=1,
+            minutes=8,
             id='update_api_keys_status',
             next_run_time=datetime.now()  # Run the first time immediately
         )
