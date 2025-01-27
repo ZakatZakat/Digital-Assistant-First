@@ -61,23 +61,20 @@ class APIKeyManager:
         Reads the status file and returns the name of the key with the highest number of available requests,
         ignoring SERP_KEY_5
         """
-        df = check_api_keys(self.path_to_file)
+        #df = check_api_keys(self.path_to_file)
         try:
             # Check if the file exists
             if not os.path.exists(self.path_to_file):
                 print(f"File {self.path_to_file} does not exist")
 
             # Read the dataframe
-            #df = pd.read_excel(self.path_to_file)
+            df = pd.read_excel(self.path_to_file)
 
-            # Exclude SERP_KEY_5 and find the key with the maximum number of requests
-            df_filtered = df[df['Name'] != 'SERP_KEY_555555']
-
-            if df_filtered.empty:
+            if df.empty:
                 return None
 
-            best_key_name = df_filtered.loc[df_filtered['Status'].idxmax(), 'Name']
-            best_key = df_filtered.loc[df_filtered['Status'].idxmax(), 'API Key']
+            best_key_name = df.loc[df['Status'].idxmax(), 'Name']
+            best_key = df.loc[df['Status'].idxmax(), 'API Key']
             print(f"The best available API key: {best_key_name}: {best_key}")
             return best_key_name, best_key
 
