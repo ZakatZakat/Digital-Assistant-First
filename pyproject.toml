@@ -1,0 +1,30 @@
+[project]
+name = "digital-assistant-first"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Ivan",email = "you@example.com"}
+]
+readme = "README.md"
+requires-python = "3.10.7"
+dependencies = [
+    "requests (==2.32.3)",
+    "pydantic (==2.9.2)",
+    "ollama (==0.3.3)",
+    "fastapi[standard] (>=0.115.7,<0.116.0)",
+    "langchain-community (==0.3.1)",
+    "huggingface-hub (==0.25.1)",
+    "sentence-transformers (==3.1.1)",
+    "faiss-cpu (==1.9.0)",
+    "python-dotenv (==1.0.1)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "apscheduler (>=3.11.0,<4.0.0)",
+    "openpyxl (>=3.1.5,<4.0.0)",
+    "streamlit-aggrid (>=1.1.0,<2.0.0)",
+    "numpy (==1.26.4)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
