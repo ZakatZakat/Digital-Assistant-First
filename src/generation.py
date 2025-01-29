@@ -17,6 +17,10 @@ from utils.kv_faiss import KeyValueFAISS
 from utils.paths import LOG_DIR
 from ollama import Client  # Импортируем Client
 
+from utils.logging import setup_logging, log_api_call
+
+logger = setup_logging(logging_path='../logs/digital_assistant.log')
+
 # Загружаем переменные окружения из файла .env
 load_dotenv()
 
@@ -29,8 +33,8 @@ if not token:
 login(token=token)
 
 def generate_response(
-    query: str = "как настроить VTB Pay Drupal", 
-    model: str = "llama3.2:latest", 
+    query: str = "как настроить VTB Pay Drupal",
+    model: str = "llama3.2:latest",
     temperature: float = 0.1,
     save_log: bool = True,
     show_log: bool = True,
@@ -54,105 +58,125 @@ def generate_response(
     Возвращает:
         dict: Словарь, содержащий ответ, использованную модель и время выполнения.
     """
-    splitter_type = config['Splitter']['Type']
-    assert(splitter_type in ['character', 'json'])
+    try:
+        splitter_type = config['Splitter']['Type']
+        assert(splitter_type in ['character', 'json'])
 
-    # Создаем клиент Ollama
-    ollama_client = Client()
+        # Создаем клиент Ollama
+        ollama_client = Client()
 
-    # Получаем список доступных моделей
-    data = ollama_client.list()['models']
+        # Получаем список доступных моделей
+        data = ollama_client.list()['models']
 
-    names = [item['name'] for item in data]
+        names = [item['name'] for item in data]
+        
+        available_models = names
+
+        # Если модель не найдена, загружаем её
+        if model not in available_models:
+            print(f"Модель '{model}' не найдена. Загружаем...")
+            ollama_client.pull(model)
+
+        # Инициализируем модель Ollama
+        llm = Ollama(model=model, temperature=temperature)
+
+        # Загружаем и подготавливаем документы
+        loader = TextLoader('content/global_js.json')
+        documents = loader.load()
+
+        embeddings = HuggingFaceEmbeddings(model_name=config['Embedding'])
+
+        # Разбиваем документы на части и создаем хранилище FAISS
+        if splitter_type == 'character':
+            docs = CharacterTextSplitter(chunk_size=int(config['Splitter']['Chunk_size']), chunk_overlap=0) \
+                .split_documents(documents)
+
+            vector_store = FAISS.from_documents(docs, embeddings)
+        elif splitter_type == 'json':
+            logical_chunks: dict = json.loads(documents[0].page_content)
+            kv_dict = {k: f'{k}:\n{str(v)}' for k, v in logical_chunks.items()}
+            docs = [Document(k) for k, _ in logical_chunks.items()]
+
+            vector_store = KeyValueFAISS.from_documents(docs, embeddings).add_value_documents(kv_dict)
+
+        # Настройка цепочки RetrievalQA
+        rag_chain = RetrievalQA.from_chain_type(
+            llm=llm,
+            chain_type="refine",
+            retriever=vector_store.as_retriever(),
+        )
+
+        # Запрос к системе
+        start_time = time.time()
+        response = rag_chain.invoke(query)
+        end_time = time.time()
+        
+        # Логируем успешный ответ
+        log_api_call(
+            logger,
+            source="LLM",
+            request=query,
+            response=response['result']
+        )
+
+        execution_time = end_time - start_time
+        
+        # Если show_log=True, выводим ответ
+        if show_log:
+            docs = rag_chain.retriever.vectorstore.similarity_search(query)
+            pprint.pprint(f'query: {query}')
+            pprint.pprint(f"context:\n" + "\n".join([doc.page_content for doc in docs]))
+            pprint.pprint(f"response: {response['result']}")
+        
+        # Если save_log=True, сохраняем ответ в файл журнала
+        if save_log:
+            response_data = {
+                'model': model,
+                'result': response['result'],
+                'query': query,
+                'human_result': QA_dictinary.get(question_type, {}).get(query, "No human result found."),
+                'temperature': temperature,
+                'execution_time': f"{execution_time:.2f} seconds"
+            }
+
+            output_file_path = LOG_DIR / 'response.json'
+
+            # Загружаем существующие данные журнала, если они есть
+            if output_file_path.exists():
+                with open(output_file_path, 'r', encoding='utf-8') as file:
+                    try:
+                        existing_data = json.load(file)
+                        if isinstance(existing_data, list):
+                            all_responses = existing_data
+                        elif isinstance(existing_data, dict):
+                            all_responses = [existing_data]
+                    except json.JSONDecodeError:
+                        all_responses = []
+            else:
+                all_responses = []
+
+            # Добавляем новый ответ
+            all_responses.append(response_data)
+
+            # Записываем обратно в файл журнала
+            with open(output_file_path, 'w', encoding='utf-8') as file:
+                json.dump(all_responses, file, ensure_ascii=False, indent=4)
+
+            print(f"Ответ сохранен в {output_file_path}")
+
+        if return_answer:
+            return response['result']
     
-    available_models = names
-
-    # Если модель не найдена, загружаем её
-    if model not in available_models:
-        print(f"Модель '{model}' не найдена. Загружаем...")
-        ollama_client.pull(model)
-
-    # Инициализируем модель Ollama
-    llm = Ollama(model=model, temperature=temperature)
-
-    # Загружаем и подготавливаем документы
-    loader = TextLoader('content/global_js.json')
-    documents = loader.load()
-
-    embeddings = HuggingFaceEmbeddings(model_name=config['Embedding'])
-
-    # Разбиваем документы на части и создаем хранилище FAISS
-    if splitter_type == 'character':
-        docs = CharacterTextSplitter(chunk_size=int(config['Splitter']['Chunk_size']), chunk_overlap=0) \
-            .split_documents(documents)
-
-        vector_store = FAISS.from_documents(docs, embeddings)
-    elif splitter_type == 'json':
-        logical_chunks: dict = json.loads(documents[0].page_content)
-        kv_dict = {k: f'{k}:\n{str(v)}' for k, v in logical_chunks.items()}
-        docs = [Document(k) for k, _ in logical_chunks.items()]
-
-        vector_store = KeyValueFAISS.from_documents(docs, embeddings).add_value_documents(kv_dict)
-
-    # Настройка цепочки RetrievalQA
-    rag_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="refine",
-        retriever=vector_store.as_retriever(),
-    )
-
-    # Запрос к системе
-    start_time = time.time()
-    response = rag_chain.invoke(query)
-    end_time = time.time()
-
-    execution_time = end_time - start_time
-    
-    # Если show_log=True, выводим ответ
-    if show_log:
-        docs = rag_chain.retriever.vectorstore.similarity_search(query)
-        pprint.pprint(f'query: {query}')
-        pprint.pprint(f"context:\n" + "\n".join([doc.page_content for doc in docs]))
-        pprint.pprint(f"response: {response['result']}")
-    
-    # Если save_log=True, сохраняем ответ в файл журнала
-    if save_log:
-        response_data = {
-            'model': model,
-            'result': response['result'],
-            'query': query,
-            'human_result': QA_dictinary.get(question_type, {}).get(query, "No human result found."),
-            'temperature': temperature,
-            'execution_time': f"{execution_time:.2f} seconds"
-        }
-
-        output_file_path = LOG_DIR / 'response.json'
-
-        # Загружаем существующие данные журнала, если они есть
-        if output_file_path.exists():
-            with open(output_file_path, 'r', encoding='utf-8') as file:
-                try:
-                    existing_data = json.load(file)
-                    if isinstance(existing_data, list):
-                        all_responses = existing_data
-                    elif isinstance(existing_data, dict):
-                        all_responses = [existing_data]
-                except json.JSONDecodeError:
-                    all_responses = []
-        else:
-            all_responses = []
-
-        # Добавляем новый ответ
-        all_responses.append(response_data)
-
-        # Записываем обратно в файл журнала
-        with open(output_file_path, 'w', encoding='utf-8') as file:
-            json.dump(all_responses, file, ensure_ascii=False, indent=4)
-
-        print(f"Ответ сохранен в {output_file_path}")
-
-    if return_answer:
-        return response['result']
+    except Exception as e:
+        # Логируем ошибку
+        log_api_call(
+            logger,
+            source="LLM",
+            request=query,
+            response="",
+            error=str(e)
+        )
+        raise
 
 def get_inference(
     model: str = "llama3.2:latest",

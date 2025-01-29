@@ -23,15 +23,19 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from serpapi import GoogleSearch
 from src.utils.check_serp_response import APIKeyManager
 
+from utils.logging import setup_logging, log_api_call
+
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
 from src.utils.paths import ROOT_DIR
 
 # Настройка логирования
-logging.basicConfig(
-    level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# logging.basicConfig(
+#     level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s'
+# )
+# logger = logging.getLogger(__name__)
+
+logger = setup_logging(logging_path='../logs/digital_assistant.log')
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
 # serpapi_key_name, serpapi_key = serpapi_key_manager.get_best_api_key()
@@ -39,107 +43,162 @@ serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
 # serpapi_key = '8f7a24637047a7906eb5e0b4780d849c0ef50e0ebac4127091ee45773a3b3f17'
 
 def search_map(q, coordinates):
-    # Проверяем, есть ли координаты и их значения
-    if not coordinates or not coordinates.get('latitude') or not coordinates.get('longitude'):
-        return []  # Возвращаем пустоту, если координаты отсутствуют
+    try:
+        # Проверяем, есть ли координаты и их значения
+        if not coordinates or not coordinates.get('latitude') or not coordinates.get('longitude'):
+            return []  # Возвращаем пустоту, если координаты отсутствуют
+        
+        latitude = coordinates.get('latitude')
+        longitude = coordinates.get('longitude')
+        zoom_level = "14z"  # Укажите необходимый уровень масштабирования карты
+
+        # Формируем параметр ll из coordinates
+        ll = f"@{latitude},{longitude},{zoom_level}"
+
+        # Параметры запроса
+        _, serpapi_key = serpapi_key_manager.get_best_api_key()
+        params = {
+            "engine": "google_maps",
+            "q": q,
+            "ll": ll,
+            "api_key": serpapi_key
+        }
+
+        search = GoogleSearch(params)
+        results = search.get_dict()
+
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Maps",
+            request=json.dumps(params),
+            response=json.dumps(results)
+        )
+
+        good_results = [
+        [
+            item.get('title', 'Нет информации'),
+            item.get('rating', 'Нет информации'),
+            item.get('reviews', 'Нет информации'),
+            item.get('address', 'Нет информации'),
+            item.get('website', 'Нет информации'),
+            item.get('phone', 'Нет информации'),
+
+        ]
+        for item in results.get('local_results', [])
+        ]
+
+        return good_results
     
-    latitude = coordinates.get('latitude')
-    longitude = coordinates.get('longitude')
-    zoom_level = "14z"  # Укажите необходимый уровень масштабирования карты
-
-    # Формируем параметр ll из coordinates
-    ll = f"@{latitude},{longitude},{zoom_level}"
-
-    # Параметры запроса
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "engine": "google_maps",
-        "q": q,
-        "ll": ll,
-        "api_key": serpapi_key
-    }
-
-    search = GoogleSearch(params)
-    results = search.get_dict()
-
-    good_results = [
-    [
-        item.get('title', 'Нет информации'),
-        item.get('rating', 'Нет информации'),
-        item.get('reviews', 'Нет информации'),
-        item.get('address', 'Нет информации'),
-        item.get('website', 'Нет информации'),
-        item.get('phone', 'Нет информации'),
-
-    ]
-    for item in results.get('local_results', [])
-    ]
-
-    return good_results
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Maps",
+            request=json.dumps(params),
+            response="",
+            error=str(e)
+        )
+        raise
 
 
 def search_shopping(q):
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "engine": "google_shopping",
-        "q": q,
-        "api_key": serpapi_key
-        }
+    try:
+        _, serpapi_key = serpapi_key_manager.get_best_api_key()
+        params = {
+            "engine": "google_shopping",
+            "q": q,
+            "api_key": serpapi_key
+            }
 
-    search = GoogleSearch(params)
-    results = search.get_dict()
-    results_with_titles_and_links = [
-        (item['title'], item['link'])
-        for item in results.get('organic_results', [])
-        if 'title' in item and 'link' in item
-    ]
-    return results_with_titles_and_links
+        search = GoogleSearch(params)
+        results = search.get_dict()
+
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Shopping",
+            request=json.dumps(params),
+            response=json.dumps(results)
+        )
+
+        results_with_titles_and_links = [
+            (item['title'], item['link'])
+            for item in results.get('organic_results', [])
+            if 'title' in item and 'link' in item
+        ]
+        return results_with_titles_and_links
+    
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Shopping",
+            request=json.dumps(params),
+            response="",
+            error=str(e)
+        )
+        raise
 
 def search_places(q):
     """Search for places using Google Search API, возвращает только первые 5 результатов."""
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "q": q,
-        #'location': 'Russia',
-        "hl": "ru",
-        "gl": "ru",
-        "google_domain": "google.com",
-        "api_key": serpapi_key
-    }
+    try:
+        _, serpapi_key = serpapi_key_manager.get_best_api_key()
+        params = {
+            "q": q,
+            #'location': 'Russia',
+            "hl": "ru",
+            "gl": "ru",
+            "google_domain": "google.com",
+            "api_key": serpapi_key
+        }
 
-    search = GoogleSearch(params)
-    results = search.get_dict()
+        search = GoogleSearch(params)
+        results = search.get_dict()
 
-    good_results = [
-    item['snippet']
-    for item in results.get('organic_results', [])
-    if 'snippet' in item]
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Places",
+            request=json.dumps(params),
+            response=json.dumps(results)
+        )
 
-    results_with_titles_and_links = [
-        (item['title'], item['link'])
+        good_results = [
+        item['snippet']
         for item in results.get('organic_results', [])
-        if 'title' in item and 'link' in item
-    ]
+        if 'snippet' in item]
 
-    coordinates = results.get('local_map', {}).get('gps_coordinates', None)
+        results_with_titles_and_links = [
+            (item['title'], item['link'])
+            for item in results.get('organic_results', [])
+            if 'title' in item and 'link' in item
+        ]
 
-    # Укажите путь к папке, где вы хотите сохранить файл
-    output_folder = "./"
-    output_file = "results.json"
+        coordinates = results.get('local_map', {}).get('gps_coordinates', None)
 
-    # Создайте папку, если она не существует
-    os.makedirs(output_folder, exist_ok=True)
+        # Укажите путь к папке, где вы хотите сохранить файл
+        output_folder = "./"
+        output_file = "results.json"
 
-    # Полный путь к файлу
-    output_path = os.path.join(output_folder, output_file)
+        # Создайте папку, если она не существует
+        os.makedirs(output_folder, exist_ok=True)
 
-    # Сохранение данных в файл JSON
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=4)
+        # Полный путь к файлу
+        output_path = os.path.join(output_folder, output_file)
 
-    print(f"Результаты сохранены в: {output_path}")
+        # Сохранение данных в файл JSON
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, ensure_ascii=False, indent=4)
 
-    return good_results, results_with_titles_and_links, coordinates
+        print(f"Результаты сохранены в: {output_path}")
+
+        return good_results, results_with_titles_and_links, coordinates
+    
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Places",
+            request=json.dumps(params),
+            response="",
+            error=str(e)
+        )
+        raise
 
 def get_ollama_models():
     """Получить список моделей из Ollama."""
@@ -154,70 +213,94 @@ def get_ollama_models():
 
 def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
-    logger.info("Генерация ответа с использованием модели и ретривера.")
-    user_input = st.session_state["messages"][-1]["content"]
+    try:
+        # logger.info("Генерация ответа с использованием модели и ретривера.")
+        user_input = st.session_state["messages"][-1]["content"]
 
-    # История сообщений
-    if int(config['history_size']) and len(st.session_state["messages"]) > 0:
-        message_list = [message['content'] for message in st.session_state["messages"]][:-1]
-        last_messages = []
-        for k, message in enumerate(message_list[::-1]):
-            if k == int(config['history_size']):
-                break
-            if k % 2:
-                last_messages.append(f'Q: {message}\n')
-            else:
-                last_messages.append(f'A: {message}\n')
-        message_history = f'\n\nИстория сообщений:\n{"".join(last_messages[::-1])}'
-    else:
-        message_history = ''
+        log_api_call(
+            logger=logger,
+            source=f"LLM ({config['Model']})",
+            request=user_input,
+            response=""  # Ответ будет добавлен позже
+        )
 
-    # Обработка запросов
-    maps_res = []
-    if config['System_type'] in ['RAG', 'File']:
-        shopping_res = search_shopping(user_input)
-        internet_res, links, coordinates = search_places(user_input)
-        maps_res = search_map(user_input, coordinates)  # Предполагаем, что это список строк
+        # История сообщений
+        if int(config['history_size']) and len(st.session_state["messages"]) > 0:
+            message_list = [message['content'] for message in st.session_state["messages"]][:-1]
+            last_messages = []
+            for k, message in enumerate(message_list[::-1]):
+                if k == int(config['history_size']):
+                    break
+                if k % 2:
+                    last_messages.append(f'Q: {message}\n')
+                else:
+                    last_messages.append(f'A: {message}\n')
+            message_history = f'\n\nИстория сообщений:\n{"".join(last_messages[::-1])}'
+        else:
+            message_history = ''
 
-        # Формирование системного промпта
-        system_prompt = (
-    "Вы — цифровой помощник сервиса ВТБ Консьерж, нацеленный на предоставление точной, творчески оформленной информации. "
-    "Ваши ответы должны быть не только полезными, но и эстетически приятными: лаконичными, логически структурированными, с элементами вдохновения и профессионализма. "
-    "Соблюдайте рекомендации AMA: проявляйте уважение, позитив и эмпатию. Фокусируйтесь на интересах клиента, используя 'вы-подход'. "
-    "Избегайте негативных формулировок и создавайте атмосферу уверенности и поддержки в каждом сообщении. "
-    "Каждый ответ должен быть продуманным, элегантным и содержать одну законченную мысль, обогащенную конкретикой и практической ценностью. "
-    "Если ответа на вопрос нет в контексте, честно сообщите об этом, но предложите альтернативные пути решения или дополнительные варианты, если это возможно. "
-    "Используйте историю сообщений для построения ответа, если она предоставлена: \n\n{context}\n\n"
-    "Если информация доступна из интернета, включайте её с корректными ссылками, формируя краткие и визуально понятные списки, например: " + str(internet_res) + " " + str(links) + "\n\n"
-    "Когда уместно, предлагайте дополнительные объявления и рекомендации из данных: " + str(shopping_res) + "\n\n"
-    "Информацию с Google Maps представляйте в виде удобной и читаемой таблицы: " + str(maps_res) + "\n\n"
-    "Используйте формат ответа, который совмещает текст и таблицы. Например:\n"
-    "- Начните с краткого и вдохновляющего введения.\n"
-    "- Представьте информацию с использованием таблиц (если возможно) для удобного восприятия.\n"
-    "- Завершите позитивным советом или рекомендацией.\n\n"
-    "Пример структуры ответа:\n"
-    "1. Введение: краткое, ясное и вдохновляющее.\n"
-    "2. Таблицы для данных (например, для цен, рейтингов, мест и другой информации):\n"
-    "```\n"
-    "| Параметр          | Значение                 |\n"
-    "|-------------------|--------------------------|\n"
-    "| Средняя стоимость | 335,997 рублей          |\n"
-    "| Рейтинг           | Высокий                 |\n"
-    "```\n"
-    "3. Заключение: ясный и позитивный вывод, например, предложение обратиться за дополнительной помощью или советы по выбору.\n\n"
-    "Готовы приступить? Начинайте ответ в стильной, вдохновляющей манере!")
+        # Обработка запросов
+        maps_res = []
+        if config['System_type'] in ['RAG', 'File']:
+            shopping_res = search_shopping(user_input)
+            internet_res, links, coordinates = search_places(user_input)
+            maps_res = search_map(user_input, coordinates)  # Предполагаем, что это список строк
+
+            # Формирование системного промпта
+            system_prompt = (
+        "Вы — цифровой помощник сервиса ВТБ Консьерж, нацеленный на предоставление точной, творчески оформленной информации. "
+        "Ваши ответы должны быть не только полезными, но и эстетически приятными: лаконичными, логически структурированными, с элементами вдохновения и профессионализма. "
+        "Соблюдайте рекомендации AMA: проявляйте уважение, позитив и эмпатию. Фокусируйтесь на интересах клиента, используя 'вы-подход'. "
+        "Избегайте негативных формулировок и создавайте атмосферу уверенности и поддержки в каждом сообщении. "
+        "Каждый ответ должен быть продуманным, элегантным и содержать одну законченную мысль, обогащенную конкретикой и практической ценностью. "
+        "Если ответа на вопрос нет в контексте, честно сообщите об этом, но предложите альтернативные пути решения или дополнительные варианты, если это возможно. "
+        "Используйте историю сообщений для построения ответа, если она предоставлена: \n\n{context}\n\n"
+        "Если информация доступна из интернета, включайте её с корректными ссылками, формируя краткие и визуально понятные списки, например: " + str(internet_res) + " " + str(links) + "\n\n"
+        "Когда уместно, предлагайте дополнительные объявления и рекомендации из данных: " + str(shopping_res) + "\n\n"
+        "Информацию с Google Maps представляйте в виде удобной и читаемой таблицы: " + str(maps_res) + "\n\n"
+        "Используйте формат ответа, который совмещает текст и таблицы. Например:\n"
+        "- Начните с краткого и вдохновляющего введения.\n"
+        "- Представьте информацию с использованием таблиц (если возможно) для удобного восприятия.\n"
+        "- Завершите позитивным советом или рекомендацией.\n\n"
+        "Пример структуры ответа:\n"
+        "1. Введение: краткое, ясное и вдохновляющее.\n"
+        "2. Таблицы для данных (например, для цен, рейтингов, мест и другой информации):\n"
+        "```\n"
+        "| Параметр          | Значение                 |\n"
+        "|-------------------|--------------------------|\n"
+        "| Средняя стоимость | 335,997 рублей          |\n"
+        "| Рейтинг           | Высокий                 |\n"
+        "```\n"
+        "3. Заключение: ясный и позитивный вывод, например, предложение обратиться за дополнительной помощью или советы по выбору.\n\n"
+        "Готовы приступить? Начинайте ответ в стильной, вдохновляющей манере!")
 
 
-        if config['Model'].startswith('gpt'):
-            prompt = ChatPromptTemplate.from_messages(
-                [("system", system_prompt), ("human", "{input}")]
-            )
-            question_answer_chain = create_stuff_documents_chain(model, prompt)
-            rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+            if config['Model'].startswith('gpt'):
+                prompt = ChatPromptTemplate.from_messages(
+                    [("system", system_prompt), ("human", "{input}")]
+                )
+                question_answer_chain = create_stuff_documents_chain(model, prompt)
+                rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
-            for chunk in rag_chain.stream({"input": user_input}):
-                if "answer" in chunk:
-                    yield {"answer": chunk["answer"], "maps_res": maps_res}
+                for chunk in rag_chain.stream({"input": user_input}):
+                    if "answer" in chunk:
+                        log_api_call(
+                            logger=logger,
+                            source=f"LLM ({config['Model']})",
+                            request=user_input,
+                            response=chunk["answer"]
+                        )
+                        yield {"answer": chunk["answer"], "maps_res": maps_res}
+    
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source=f"LLM ({config['Model']})",
+            request=user_input,
+            response="",
+            error=str(e)
+        )
+        raise
 
     
 
