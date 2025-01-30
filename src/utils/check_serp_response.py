@@ -36,7 +36,7 @@ def check_api_keys(path_to_file="api_keys_status.xlsx"):
 
     # Save the updated data back to the file
     df.to_excel(path_to_file, index=False)
-    print(df)
+    # print(df)
     return df
 
 class APIKeyManager:

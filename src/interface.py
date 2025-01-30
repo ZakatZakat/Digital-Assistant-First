@@ -23,7 +23,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from serpapi import GoogleSearch
 from src.utils.check_serp_response import APIKeyManager
 
-from utils.logging import setup_logging, log_api_call
+from src.utils.logging import setup_logging, log_api_call
 
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
@@ -35,7 +35,7 @@ from src.utils.paths import ROOT_DIR
 # )
 # logger = logging.getLogger(__name__)
 
-logger = setup_logging(logging_path='../logs/digital_assistant.log')
+logger = setup_logging(logging_path='logs/digital_assistant.log')
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
 # serpapi_key_name, serpapi_key = serpapi_key_manager.get_best_api_key()
