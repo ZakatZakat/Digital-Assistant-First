@@ -67,13 +67,6 @@ def search_map(q, coordinates):
         search = GoogleSearch(params)
         results = search.get_dict()
 
-        log_api_call(
-            logger=logger,
-            source="SerpAPI Maps",
-            request=json.dumps(params),
-            response=json.dumps(results)
-        )
-
         good_results = [
         [
             item.get('title', 'Нет информации'),
@@ -87,13 +80,20 @@ def search_map(q, coordinates):
         for item in results.get('local_results', [])
         ]
 
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Maps",
+            request=q,
+            response=good_results
+        )
+
         return good_results
     
     except Exception as e:
         log_api_call(
             logger=logger,
             source="SerpAPI Maps",
-            request=json.dumps(params),
+            request=q,
             response="",
             error=str(e)
         )
@@ -112,25 +112,26 @@ def search_shopping(q):
         search = GoogleSearch(params)
         results = search.get_dict()
 
-        log_api_call(
-            logger=logger,
-            source="SerpAPI Shopping",
-            request=json.dumps(params),
-            response=json.dumps(results)
-        )
-
         results_with_titles_and_links = [
             (item['title'], item['link'])
             for item in results.get('organic_results', [])
             if 'title' in item and 'link' in item
         ]
+
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Shopping",
+            request=q,
+            response=results_with_titles_and_links
+        )
+
         return results_with_titles_and_links
     
     except Exception as e:
         log_api_call(
             logger=logger,
             source="SerpAPI Shopping",
-            request=json.dumps(params),
+            request=q,
             response="",
             error=str(e)
         )
@@ -151,13 +152,6 @@ def search_places(q):
 
         search = GoogleSearch(params)
         results = search.get_dict()
-
-        log_api_call(
-            logger=logger,
-            source="SerpAPI Places",
-            request=json.dumps(params),
-            response=json.dumps(results)
-        )
 
         good_results = [
         item['snippet']
@@ -188,13 +182,20 @@ def search_places(q):
 
         print(f"Результаты сохранены в: {output_path}")
 
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Places",
+            request=q,
+            response=good_results + results_with_titles_and_links
+        )
+
         return good_results, results_with_titles_and_links, coordinates
     
     except Exception as e:
         log_api_call(
             logger=logger,
             source="SerpAPI Places",
-            request=json.dumps(params),
+            request=q,
             response="",
             error=str(e)
         )
@@ -216,13 +217,6 @@ def model_response_generator(retriever, model, config):
     try:
         # logger.info("Генерация ответа с использованием модели и ретривера.")
         user_input = st.session_state["messages"][-1]["content"]
-
-        log_api_call(
-            logger=logger,
-            source=f"LLM ({config['Model']})",
-            request=user_input,
-            response=""  # Ответ будет добавлен позже
-        )
 
         # История сообщений
         if int(config['history_size']) and len(st.session_state["messages"]) > 0:
@@ -282,15 +276,18 @@ def model_response_generator(retriever, model, config):
                 question_answer_chain = create_stuff_documents_chain(model, prompt)
                 rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
+                full_answer = ""
                 for chunk in rag_chain.stream({"input": user_input}):
                     if "answer" in chunk:
-                        log_api_call(
-                            logger=logger,
-                            source=f"LLM ({config['Model']})",
-                            request=user_input,
-                            response=chunk["answer"]
-                        )
+                        full_answer += chunk["answer"]
                         yield {"answer": chunk["answer"], "maps_res": maps_res}
+
+                log_api_call(
+                    logger=logger,
+                    source=f"LLM ({config['Model']})",
+                    request=user_input,
+                    response=full_answer,
+                )
     
     except Exception as e:
         log_api_call(
