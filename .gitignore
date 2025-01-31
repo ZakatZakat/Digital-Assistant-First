@@ -11,3 +11,5 @@ notebooks/my_notes
 **/dist
 api_keys_status.pkl
 **/__pycache__
+**/logs
+**/__pycache__
