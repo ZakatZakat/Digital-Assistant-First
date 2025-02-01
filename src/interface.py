@@ -5,6 +5,7 @@ import json
 import tempfile
 import pymupdf
 import os
+import yaml
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 # Импорты сторонних библиотек
@@ -33,9 +34,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
-# serpapi_key_name, serpapi_key = serpapi_key_manager.get_best_api_key()
-# print('выбран ключ', serpapi_key)
-# serpapi_key = '8f7a24637047a7906eb5e0b4780d849c0ef50e0ebac4127091ee45773a3b3f17'
+
+def load_config_yaml(config_file="config.yaml"):
+    """Загрузить конфигурацию из YAML-файла."""
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
 
 def search_map(q, coordinates):
     # Проверяем, есть ли координаты и их значения
@@ -156,13 +160,14 @@ def model_response_generator(retriever, model, config):
     logger.info("Генерация ответа с использованием модели и ретривера.")
     user_input = st.session_state["messages"][-1]["content"]
 
-    # История сообщений
+    # Формирование истории сообщений
     if int(config['history_size']) and len(st.session_state["messages"]) > 0:
         message_list = [message['content'] for message in st.session_state["messages"]][:-1]
         last_messages = []
         for k, message in enumerate(message_list[::-1]):
             if k == int(config['history_size']):
                 break
+            # Чередуем форматирование вопросов и ответов
             if k % 2:
                 last_messages.append(f'Q: {message}\n')
             else:
@@ -171,45 +176,29 @@ def model_response_generator(retriever, model, config):
     else:
         message_history = ''
 
-    # Обработка запросов
+    # Обработка запросов для типов системы RAG или File
     maps_res = []
     if config['System_type'] in ['RAG', 'File']:
         shopping_res = search_shopping(user_input)
         internet_res, links, coordinates = search_places(user_input)
         maps_res = search_map(user_input, coordinates)  # Предполагаем, что это список строк
 
-        # Формирование системного промпта
-        system_prompt = (
-    "Вы — цифровой помощник сервиса ВТБ Консьерж, нацеленный на предоставление точной, творчески оформленной информации. "
-    "Ваши ответы должны быть не только полезными, но и эстетически приятными: лаконичными, логически структурированными, с элементами вдохновения и профессионализма. "
-    "Соблюдайте рекомендации AMA: проявляйте уважение, позитив и эмпатию. Фокусируйтесь на интересах клиента, используя 'вы-подход'. "
-    "Избегайте негативных формулировок и создавайте атмосферу уверенности и поддержки в каждом сообщении. "
-    "Каждый ответ должен быть продуманным, элегантным и содержать одну законченную мысль, обогащенную конкретикой и практической ценностью. "
-    "Если ответа на вопрос нет в контексте, честно сообщите об этом, но предложите альтернативные пути решения или дополнительные варианты, если это возможно. "
-    "Используйте историю сообщений для построения ответа, если она предоставлена: \n\n{context}\n\n"
-    "Если информация доступна из интернета, включайте её с корректными ссылками, формируя краткие и визуально понятные списки, например: " + str(internet_res) + " " + str(links) + "\n\n"
-    "Когда уместно, предлагайте дополнительные объявления и рекомендации из данных: " + str(shopping_res) + "\n\n"
-    "Информацию с Google Maps представляйте в виде удобной и читаемой таблицы: " + str(maps_res) + "\n\n"
-    "Используйте формат ответа, который совмещает текст и таблицы. Например:\n"
-    "- Начните с краткого и вдохновляющего введения.\n"
-    "- Представьте информацию с использованием таблиц (если возможно) для удобного восприятия.\n"
-    "- Завершите позитивным советом или рекомендацией.\n\n"
-    "Пример структуры ответа:\n"
-    "1. Введение: краткое, ясное и вдохновляющее.\n"
-    "2. Таблицы для данных (например, для цен, рейтингов, мест и другой информации):\n"
-    "```\n"
-    "| Параметр          | Значение                 |\n"
-    "|-------------------|--------------------------|\n"
-    "| Средняя стоимость | 335,997 рублей          |\n"
-    "| Рейтинг           | Высокий                 |\n"
-    "```\n"
-    "3. Заключение: ясный и позитивный вывод, например, предложение обратиться за дополнительной помощью или советы по выбору.\n\n"
-    "Готовы приступить? Начинайте ответ в стильной, вдохновляющей манере!")
+        # Загрузка системного промпта из YAML-конфига
+        system_prompt_template = config["system"]["system_prompt"]
 
+        # Форматирование промпта с подстановкой переменных
+        formatted_prompt = system_prompt_template.format(
+            context=message_history,
+            internet_res=internet_res,
+            links=links,
+            shopping_res=shopping_res,
+            maps_res=maps_res
+        )
 
+        # Создание цепочки для модели, если имя модели начинается с 'gpt'
         if config['Model'].startswith('gpt'):
             prompt = ChatPromptTemplate.from_messages(
-                [("system", system_prompt), ("human", "{input}")]
+                [("system", formatted_prompt), ("human", "{input}")]
             )
             question_answer_chain = create_stuff_documents_chain(model, prompt)
             rag_chain = create_retrieval_chain(retriever, question_answer_chain)
@@ -217,8 +206,6 @@ def model_response_generator(retriever, model, config):
             for chunk in rag_chain.stream({"input": user_input}):
                 if "answer" in chunk:
                     yield {"answer": chunk["answer"], "maps_res": maps_res}
-
-    
 
 
 def handle_user_input(retriever, model, config):
