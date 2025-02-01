@@ -19,6 +19,12 @@ def setup_logging():
     return logging.getLogger(__name__)
 
 
+def load_config_yaml(config_file="config.yaml"):
+    """Загрузить конфигурацию из YAML-файла."""
+    with open(config_file, "r", encoding="utf-8") as f:
+        config_yaml = yaml.safe_load(f)
+    return config_yaml
+
 def load_available_models():
     """Загрузка доступных моделей из Ollama и добавление пользовательских моделей."""
     #models = [model['name'] for model in ollama.list()['models']]
@@ -115,7 +121,7 @@ def main():
     """Основная функция для запуска приложения Streamlit."""
     load_dotenv()
     logger = setup_logging()
-
+    config_yaml = load_config_yaml()
     # Статичные параметры опций
     options = {
         "models": load_available_models(),
@@ -131,7 +137,7 @@ def main():
     defaults = {
         'config_applied': False,
         'config': None,
-        'selected_model': 'gpt-4o-mini',  # Жестко задаем модель gpt-4o
+        'selected_model': config_yaml['model'],
         'selected_system': options["system_types"][0],
         'selected_chain_type': options["chain_types"][0],
         'selected_temperature': 0.2,

@@ -38,8 +38,8 @@ serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
 def load_config_yaml(config_file="config.yaml"):
     """Загрузить конфигурацию из YAML-файла."""
     with open(config_file, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-    return config
+        config_yaml = yaml.safe_load(f)
+    return config_yaml
 
 def search_map(q, coordinates):
     # Проверяем, есть ли координаты и их значения
@@ -157,35 +157,41 @@ def get_ollama_models():
 
 def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
+    config_yaml = load_config_yaml()
     logger.info("Генерация ответа с использованием модели и ретривера.")
     user_input = st.session_state["messages"][-1]["content"]
 
-    # Формирование истории сообщений
-    if int(config['history_size']) and len(st.session_state["messages"]) > 0:
-        message_list = [message['content'] for message in st.session_state["messages"]][:-1]
-        last_messages = []
-        for k, message in enumerate(message_list[::-1]):
-            if k == int(config['history_size']):
-                break
-            # Чередуем форматирование вопросов и ответов
-            if k % 2:
-                last_messages.append(f'Q: {message}\n')
-            else:
-                last_messages.append(f'A: {message}\n')
-        message_history = f'\n\nИстория сообщений:\n{"".join(last_messages[::-1])}'
-    else:
-        message_history = ''
-
-    # Обработка запросов для типов системы RAG или File
-    maps_res = []
-    if config['System_type'] in ['RAG', 'File']:
+    # Формирование истории сообщений (исключая системное сообщение)
+    message_history = ""
+    if "messages" in st.session_state and len(st.session_state["messages"]) > 1:
+        history_messages = [
+            f"{msg['role']}: {msg['content']}"
+            for msg in st.session_state["messages"]
+            if msg.get("role") != "system"
+        ]
+        history_size = int(config.get("history_size", 0))
+        if history_size:
+            history_messages = history_messages[-history_size:]
+        message_history = "\n".join(history_messages)
+    
+    # Если интернет-поиск включён, вызываем функции поиска, иначе возвращаем пустую строку
+    if config_yaml.get("internet_search", False):
         shopping_res = search_shopping(user_input)
         internet_res, links, coordinates = search_places(user_input)
-        maps_res = search_map(user_input, coordinates)  # Предполагаем, что это список строк
-
+        maps_res = search_map(user_input, coordinates)
+    else:
+        shopping_res = ""
+        internet_res = ""
+        links = ""
+        maps_res = ""
+    
+    # Если система работает в режимах RAG или File
+    if config['System_type'] in ['RAG', 'File']:
+        
+       
         # Загрузка системного промпта из YAML-конфига
-        system_prompt_template = config["system"]["system_prompt"]
-
+        system_prompt_template = config_yaml["system"]["system_prompt"]
+        
         # Форматирование промпта с подстановкой переменных
         formatted_prompt = system_prompt_template.format(
             context=message_history,
@@ -198,16 +204,20 @@ def model_response_generator(retriever, model, config):
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
         if config['Model'].startswith('gpt'):
             prompt = ChatPromptTemplate.from_messages(
-                [("system", formatted_prompt), ("human", "{input}")]
+                [
+                    ("system", formatted_prompt),
+                    ("human", "User query: {input}\nAdditional context: {context}")
+                ]
             )
             question_answer_chain = create_stuff_documents_chain(model, prompt)
             rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
-            for chunk in rag_chain.stream({"input": user_input}):
+            # При вызове цепочки передаём и 'input', и 'context'.
+            # Если дополнительного контекста нет, можно передать пустую строку.
+            for chunk in rag_chain.stream({"input": user_input, "context": ""}):
                 if "answer" in chunk:
                     yield {"answer": chunk["answer"], "maps_res": maps_res}
-
-
+                    
 def handle_user_input(retriever, model, config):
     """Обработать пользовательский ввод и сгенерировать ответ ассистента."""
     prompt = st.chat_input("Введите запрос здесь...")
