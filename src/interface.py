@@ -2,7 +2,6 @@
 import logging
 import subprocess
 import json
-import ollama
 import tempfile
 import pymupdf
 import os

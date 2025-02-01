@@ -3,7 +3,6 @@ import logging
 import time
 
 # Импорты сторонних библиотек
-import ollama
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
