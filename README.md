@@ -16,7 +16,7 @@
 
 ## Установка
 
-Сначала необходимо клонировать репозиторий и установить его зависимости.
+Полный процесс установки можно описать так:
 ```bash
 1. git clone https://github.com/ZakatZakat/Digital-Assistant-First.git
 2. cd Digital-Assistant-First
