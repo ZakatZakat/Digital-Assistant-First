@@ -21,7 +21,13 @@ dependencies = [
     "apscheduler (>=3.11.0,<4.0.0)",
     "openpyxl (>=3.1.5,<4.0.0)",
     "streamlit-aggrid (>=1.1.0,<2.0.0)",
-    "numpy (==1.26.4)"
+    "numpy (==1.26.4)",
+    "beautifulsoup4 (==4.12.3)",
+    "selenium (==4.27.1)",
+    "pyppeteer (==2.0.0)",
+    "bytesbufio (==1.0.3)",
+    "python-rucaptcha (==6.3.1)",
+    "2captcha-python (==1.5.0)"
 ]
 
 

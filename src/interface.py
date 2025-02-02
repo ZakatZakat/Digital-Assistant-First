@@ -26,6 +26,7 @@ from src.utils.check_serp_response import APIKeyManager
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
 from src.utils.paths import ROOT_DIR
+from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
 
 # Настройка логирования
 logging.basicConfig(
@@ -206,20 +207,102 @@ def model_response_generator(retriever, model, config):
     "```\n"
     "3. Заключение: ясный и позитивный вывод, например, предложение обратиться за дополнительной помощью или советы по выбору.\n\n"
     "Готовы приступить? Начинайте ответ в стильной, вдохновляющей манере!")
-
+        
+        system_prompt_tickets = f"""You analyze the user's requests and return a response in the form of a JSON file with the fields and values. 
+            Analyze this travel query: "{user_input}"
+            0. Is the user going on a trip and needs to find airline tickets? Answer only 'True' if Yes or 'False' if No in 'response' field of JSON. 
+            1. What is the main destination? Write the 3-letter code (IATA code) of the city
+            2. What is the departure city? If not mentioned, assume MOW
+            3. What are the travel dates? Write only in ddmm format (for example 25 May: 2505) If not mentioned, for start date 2105 and 2705 for end date
+            4. How many passengers? Write only number. If not mentioned, assume 1
+            5. What is the preferred travel class (economy - '' /comfort - 'w'/business - 'c'/first - 'f')? If not mentioned, assume economy - ''
+            6. Are there any specific interests or preferences mentioned?
+            7. What is the budget level (budget/business/vip)?
+            Provide your analysis in JSON format only in ENGLISH with keys: "destination", "departure_city", "start_date", "end_date", 
+            "passengers", "travel_class", "interests", "budget_level"
+        """
 
         if config['Model'].startswith('gpt'):
-            prompt = ChatPromptTemplate.from_messages(
-                [("system", system_prompt), ("human", "{input}")]
-            )
-            question_answer_chain = create_stuff_documents_chain(model, prompt)
-            rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+            tickets_need = None
+            try:
+                # Вызов модели с проверкой входных данных
+                if not isinstance(user_input, str) or not user_input.strip():
+                    raise ValueError("User input должен быть непустой строкой.")
 
-            for chunk in rag_chain.stream({"input": user_input}):
-                if "answer" in chunk:
-                    yield {"answer": chunk["answer"], "maps_res": maps_res}
+                messages = [
+                    {"role": "system", "content": system_prompt_tickets},
+                    {"role": "user", "content": user_input}
+                ]
+                messages = [
+                    {"role": "system", "content": system_prompt_tickets},
+                    {"role": "user", "content": user_input}
+                ]
 
-    
+                # Вызываем модель с параметром stream=False
+                response = model.invoke(
+                    messages,
+                    stream=False
+                )
+
+                # Получаем контент из ответа
+                if hasattr(response, 'content'):
+                    content = response.content
+                elif hasattr(response, 'message'):
+                    content = response.message.content
+                else:
+                    content = str(response)
+
+                analysis = content.strip()
+                if analysis.startswith("```json"):
+                    analysis = analysis[7:]  # Remove ```json
+                if analysis.endswith("```"):
+                    analysis = analysis[:-3]  # Remove trailing ```
+                analysis = analysis.strip()
+                tickets_need = json.loads(analysis)
+
+                print('tickets_need response:', tickets_need.get('response'))
+
+            except Exception as e:
+                print(f"Произошла ошибка при вызове модели: {e}")
+                tickets_need = {'response': 'false'}
+
+            if tickets_need.get('response', '').lower() == 'true':
+                prompt = ChatPromptTemplate.from_messages(
+                    [("system", system_prompt), ("human", "{input}")]
+                )
+
+                # Get flight options
+                aviasales_url = construct_aviasales_url(
+                    tickets_need["departure_city"],
+                    tickets_need["destination"],
+                    tickets_need["start_date"],
+                    tickets_need["end_date"],
+                    tickets_need["passengers"],
+                    tickets_need.get("travel_class", ""),
+                )
+                # tickets_data = fetch_page_text(aviasales_url)
+                # print(tickets_data)
+
+                prompt = ChatPromptTemplate.from_messages(
+                    [("system", system_prompt), ("human", "{input}" + f"Url for tickets of this response: {aviasales_url}")]
+                )
+                question_answer_chain = create_stuff_documents_chain(model, prompt)
+                rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+
+                for chunk in rag_chain.stream({"input": user_input}):
+                    if "answer" in chunk:
+                        yield {"answer": chunk["answer"], "maps_res": maps_res}
+
+            else:
+                prompt = ChatPromptTemplate.from_messages(
+                    [("system", system_prompt), ("human", "{input}")]
+                )
+                question_answer_chain = create_stuff_documents_chain(model, prompt)
+                rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+
+                for chunk in rag_chain.stream({"input": user_input}):
+                    if "answer" in chunk:
+                        yield {"answer": chunk["answer"], "maps_res": maps_res}
 
 
 def handle_user_input(retriever, model, config):
