@@ -18,17 +18,15 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from src.utils.check_serp_response import APIKeyManager
+
+from src.utils.logging import setup_logging, log_api_call
 from src.internet_search import *
 
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
 from src.utils.paths import ROOT_DIR
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = setup_logging(logging_path='logs/digital_assistant.log')
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
 
@@ -41,71 +39,87 @@ def load_config_yaml(config_file="config.yaml"):
 def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
     config_yaml = load_config_yaml()
-    logger.info("Генерация ответа с использованием модели и ретривера.")
     user_input = st.session_state["messages"][-1]["content"]
 
-    # Формирование истории сообщений (исключая системное сообщение)
-    message_history = ""
-    if "messages" in st.session_state and len(st.session_state["messages"]) > 1:
-        history_messages = [
-            f"{msg['role']}: {msg['content']}"
-            for msg in st.session_state["messages"]
-            if msg.get("role") != "system"
-        ]
-        history_size = int(config.get("history_size", 0))
-        if history_size:
-            history_messages = history_messages[-history_size:]
-        message_history = "\n".join(history_messages)
-    
-    # Если интернет-поиск включён, вызываем функции поиска, иначе возвращаем пустую строку
-    if config_yaml.get("internet_search", False):
-        _, serpapi_key = serpapi_key_manager.get_best_api_key()
-
-        shopping_res = search_shopping(user_input, serpapi_key)
-        internet_res, links, coordinates = search_places(user_input, serpapi_key)
-        maps_res = search_map(user_input, coordinates, serpapi_key)
-        yandex_res = yandex_search(user_input, serpapi_key)
-    else:
-        shopping_res = ""
-        internet_res = ""
-        links = ""
-        maps_res = ""
-        yandex_res = ""
-    
-    # Если система работает в режимах RAG или File
-    if config['System_type'] in ['RAG', 'File']:
+    try:
+        # Формирование истории сообщений (исключая системное сообщение)
+        message_history = ""
+        if "messages" in st.session_state and len(st.session_state["messages"]) > 1:
+            history_messages = [
+                f"{msg['role']}: {msg['content']}"
+                for msg in st.session_state["messages"]
+                if msg.get("role") != "system"
+            ]
+            history_size = int(config.get("history_size", 0))
+            if history_size:
+                history_messages = history_messages[-history_size:]
+            message_history = "\n".join(history_messages)
         
-       
-        # Загрузка системного промпта из YAML-конфига
-        system_prompt_template = config_yaml["system"]["system_prompt"]
-        
-        # Форматирование промпта с подстановкой переменных
-        formatted_prompt = system_prompt_template.format(
-            context=message_history,
-            internet_res=internet_res,
-            links=links,
-            shopping_res=shopping_res,
-            maps_res=maps_res,
-            yandex_res=yandex_res
-        )
+        # Если интернет-поиск включён, вызываем функции поиска, иначе возвращаем пустую строку
+        if config_yaml.get("internet_search", False):
+            _, serpapi_key = serpapi_key_manager.get_best_api_key()
 
-        # Создание цепочки для модели, если имя модели начинается с 'gpt'
-        if config['Model'].startswith('gpt'):
-            prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", formatted_prompt),
-                    ("human", "User query: {input}\nAdditional context: {context}")
-                ]
+            shopping_res = search_shopping(user_input, serpapi_key)
+            internet_res, links, coordinates = search_places(user_input, serpapi_key)
+            maps_res = search_map(user_input, coordinates, serpapi_key)
+            yandex_res = yandex_search(user_input, serpapi_key)
+        else:
+            shopping_res = ""
+            internet_res = ""
+            links = ""
+            maps_res = ""
+            yandex_res = ""
+        
+        # Если система работает в режимах RAG или File
+        if config['System_type'] in ['RAG', 'File']:
+            
+        
+            # Загрузка системного промпта из YAML-конфига
+            system_prompt_template = config_yaml["system"]["system_prompt"]
+            
+            # Форматирование промпта с подстановкой переменных
+            formatted_prompt = system_prompt_template.format(
+                context=message_history,
+                internet_res=internet_res,
+                links=links,
+                shopping_res=shopping_res,
+                maps_res=maps_res,
+                yandex_res=yandex_res
             )
-            question_answer_chain = create_stuff_documents_chain(model, prompt)
-            rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
-            # При вызове цепочки передаём и 'input', и 'context'.
-            # Если дополнительного контекста нет, можно передать пустую строку.
-            for chunk in rag_chain.stream({"input": user_input, "context": ""}):
-                if "answer" in chunk:
-                    yield {"answer": chunk["answer"], "maps_res": maps_res}
-                    
+            # Создание цепочки для модели, если имя модели начинается с 'gpt'
+            if config['Model'].startswith('gpt'):
+                prompt = ChatPromptTemplate.from_messages(
+                    [
+                        ("system", formatted_prompt),
+                        ("human", "User query: {input}\nAdditional context: {context}")
+                    ]
+                )
+                question_answer_chain = create_stuff_documents_chain(model, prompt)
+                rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+
+                full_answer = ""
+                for chunk in rag_chain.stream({"input": user_input}):
+                    if "answer" in chunk:
+                        full_answer += chunk["answer"]
+                        yield {"answer": chunk["answer"], "maps_res": maps_res}
+
+            log_api_call(
+                    logger=logger,
+                    source=f"LLM ({config['Model']})",
+                    request=user_input,
+                    response=full_answer,
+                )
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source=f"LLM ({config['Model']})",
+            request=user_input,
+            response="",
+            error=str(e)
+        )
+        raise
+
 def handle_user_input(retriever, model, config):
     """Обработать пользовательский ввод и сгенерировать ответ ассистента."""
     prompt = st.chat_input("Введите запрос здесь...")
@@ -136,7 +150,7 @@ def init_message_history(template_prompt):
         st.session_state["messages"] = []
         with st.chat_message('System'):
             st.markdown(template_prompt)
-        logger.info("История сообщений инициализирована.")
+        
 
 
 def display_chat_history():
@@ -212,7 +226,7 @@ def create_retriever(splitter_type, embeddings_model, documents, chunk_size):
         splitter = CharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=0)
         docs = splitter.split_documents(documents)
         vector_store = FAISS.from_documents(docs, embeddings)
-        logger.info(f"Векторное хранилище инициализировано с {len(docs)} документами.")
+    
         return vector_store
     
     elif splitter_type == 'json':
@@ -225,19 +239,14 @@ def create_retriever(splitter_type, embeddings_model, documents, chunk_size):
         kv_dict = {k: f'{k}:\n{v}' for k, v in logical_chunks.items()}
         docs = [Document(k) for k in logical_chunks.keys()]
         vector_store = KeyValueFAISS.from_documents(docs, embeddings).add_value_documents(kv_dict)
-        logger.info("Векторное хранилище для данных JSON инициализировано.")
         return vector_store
 
     else:
-        logger.error(f"Неподдерживаемый тип разбиения: {splitter_type}")
         raise ValueError(f"Неподдерживаемый тип разбиения: {splitter_type}")
 
 def create_vector_space(config):
     """Создать векторное пространство для извлечения документов на основе конфигурации."""
-    logger.info(
-        f"Инициализация векторного хранилища с моделью {config['Embedding']} и типом разбиения "
-        f"{config['Splitter']['Type']}"
-    )
+
     embeddings_model = config['Embedding']
     splitter_type = config['Splitter']['Type']
     chunk_size = int(config['Splitter']['Chunk_size'])

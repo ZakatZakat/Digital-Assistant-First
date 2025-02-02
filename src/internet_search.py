@@ -6,6 +6,7 @@ from src.utils.check_serp_response import APIKeyManager
 
 # Локальные импорты
 from src.utils.paths import ROOT_DIR
+from src.utils.logging import setup_logging, log_api_call
 
 # Настройка логирования
 logging.basicConfig(
@@ -17,108 +18,173 @@ serpapi_key_manager = APIKeyManager(path_to_file=ROOT_DIR / "api_keys_status.xls
 
 
 def search_map(q, coordinates, serpapi_key):
-    # Проверяем, есть ли координаты и их значения
-    if not coordinates or not coordinates.get('latitude') or not coordinates.get('longitude'):
-        return []  # Возвращаем пустоту, если координаты отсутствуют
+    try:
+        # Проверяем, есть ли координаты и их значения
+        if not coordinates or not coordinates.get('latitude') or not coordinates.get('longitude'):
+            return []  # Возвращаем пустоту, если координаты отсутствуют
+        
+        latitude = coordinates.get('latitude')
+        longitude = coordinates.get('longitude')
+        zoom_level = "14z"  # Укажите необходимый уровень масштабирования карты
+
+        # Формируем параметр ll из coordinates
+        ll = f"@{latitude},{longitude},{zoom_level}"
+
+        # Параметры запроса
+        params = {
+            "engine": "google_maps",
+            "q": q,
+            "ll": ll,
+            "api_key": serpapi_key
+        }
+
+        search = GoogleSearch(params)
+        results = search.get_dict()
+
+        good_results = [
+        [
+            item.get('title', 'Нет информации'),
+            item.get('rating', 'Нет информации'),
+            item.get('reviews', 'Нет информации'),
+            item.get('address', 'Нет информации'),
+            item.get('website', 'Нет информации'),
+            item.get('phone', 'Нет информации'),
+
+        ]
+        for item in results.get('local_results', [])
+        ]
+
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Maps",
+            request=q,
+            response=good_results
+        )
+
+        return good_results
     
-    latitude = coordinates.get('latitude')
-    longitude = coordinates.get('longitude')
-    zoom_level = "14z"  # Укажите необходимый уровень масштабирования карты
-
-    # Формируем параметр ll из coordinates
-    ll = f"@{latitude},{longitude},{zoom_level}"
-
-    # Параметры запроса
-    #_, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "engine": "google_maps",
-        "q": q,
-        "ll": ll,
-        "api_key": serpapi_key
-    }
-
-    search = GoogleSearch(params)
-    results = search.get_dict()
-
-    good_results = [
-    [
-        item.get('title', 'Нет информации'),
-        item.get('rating', 'Нет информации'),
-        item.get('reviews', 'Нет информации'),
-        item.get('address', 'Нет информации'),
-        item.get('website', 'Нет информации'),
-        item.get('phone', 'Нет информации'),
-
-    ]
-    for item in results.get('local_results', [])
-    ]
-
-    return good_results
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Maps",
+            request=q,
+            response="",
+            error=str(e)
+        )
+        raise
 
 
 def search_shopping(q, serpapi_key):
-    #_, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "engine": "google_shopping",
-        "q": q,
-        "api_key": serpapi_key
-        }
+    try:
+        params = {
+            "engine": "google_shopping",
+            "q": q,
+            "api_key": serpapi_key
+            }
 
-    search = GoogleSearch(params)
-    results = search.get_dict()
-    results_with_titles_and_links = [
-        (item['title'], item['link'])
-        for item in results.get('organic_results', [])
-        if 'title' in item and 'link' in item
-    ]
-    return results_with_titles_and_links
+        search = GoogleSearch(params)
+        results = search.get_dict()
+
+        results_with_titles_and_links = [
+            (item['title'], item['link'])
+            for item in results.get('organic_results', [])
+            if 'title' in item and 'link' in item
+        ]
+
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Shopping",
+            request=q,
+            response=results_with_titles_and_links
+        )
+
+        return results_with_titles_and_links
+    
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Shopping",
+            request=q,
+            response="",
+            error=str(e)
+        )
+        raise
 
 def search_places(q, serpapi_key):
     """Search for places using Google Search API, возвращает только первые 5 результатов."""
-    #_, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "q": q,
-        #'location': 'Russia',
-        "hl": "ru",
-        "gl": "ru",
-        "google_domain": "google.com",
-        "api_key": serpapi_key
-    }
-
-    search = GoogleSearch(params)
-    results = search.get_dict()
-
-    good_results = [
-    item['snippet']
-    for item in results.get('organic_results', [])
-    if 'snippet' in item]
-
-    results_with_titles_and_links = [
-        (item['title'], item['link'])
-        for item in results.get('organic_results', [])
-        if 'title' in item and 'link' in item
-    ]
-
-    coordinates = results.get('local_map', {}).get('gps_coordinates', None)
-
-    return good_results, results_with_titles_and_links, coordinates
-
-def yandex_search(q, serpapi_key):
-    params = {
-        "lr": '225', 
-        "engine": "yandex",
-        "yandex_domain": 'yandex.ru',
-        "text": q,
-        "api_key": serpapi_key
+    try:
+        params = {
+            "q": q,
+            #'location': 'Russia',
+            "hl": "ru",
+            "gl": "ru",
+            "google_domain": "google.com",
+            "api_key": serpapi_key
         }
 
-    search = GoogleSearch(params)
-    results = search.get_dict()
+        search = GoogleSearch(params)
+        results = search.get_dict()
 
-    results_with_titles_and_links = [
-        (item['title'], item['link'], item['snippet'], item['displayed_link'])
+        good_results = [
+        item['snippet']
         for item in results.get('organic_results', [])
-        if 'title' in item and 'link' in item
-    ]
+        if 'snippet' in item]
 
-    return results_with_titles_and_links
+        results_with_titles_and_links = [
+            (item['title'], item['link'])
+            for item in results.get('organic_results', [])
+            if 'title' in item and 'link' in item
+        ]
+
+        coordinates = results.get('local_map', {}).get('gps_coordinates', None)
+
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Places",
+            request=q,
+            response=good_results + results_with_titles_and_links
+        )
+
+        return good_results, results_with_titles_and_links, coordinates
+    
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Places",
+            request=q,
+            response="",
+            error=str(e)
+        )
+        raise
+
+
+def yandex_search(q, serpapi_key):
+    try:
+        params = {
+            "lr": '225', 
+            "engine": "yandex",
+            "yandex_domain": 'yandex.ru',
+            "text": q,
+            "api_key": serpapi_key
+            }
+
+        search = GoogleSearch(params)
+        results = search.get_dict()
+
+        results_with_titles_and_links = [
+            (item['title'], item['link'], item['snippet'], item['displayed_link'])
+            for item in results.get('organic_results', [])
+            if 'title' in item and 'link' in item
+        ]
+
+        return results_with_titles_and_links
+    
+    except Exception as e:
+        log_api_call(
+            logger=logger,
+            source="SerpAPI Yandex",
+            request=q,
+            response="",
+            error=str(e)
+        )
+        raise
