@@ -13,10 +13,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
+serpapi_key_manager = APIKeyManager(path_to_file=ROOT_DIR / "api_keys_status.xlsx")
 
 
-def search_map(q, coordinates):
+def search_map(q, coordinates, serpapi_key):
     # Проверяем, есть ли координаты и их значения
     if not coordinates or not coordinates.get('latitude') or not coordinates.get('longitude'):
         return []  # Возвращаем пустоту, если координаты отсутствуют
@@ -29,7 +29,7 @@ def search_map(q, coordinates):
     ll = f"@{latitude},{longitude},{zoom_level}"
 
     # Параметры запроса
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
+    #_, serpapi_key = serpapi_key_manager.get_best_api_key()
     params = {
         "engine": "google_maps",
         "q": q,
@@ -56,8 +56,8 @@ def search_map(q, coordinates):
     return good_results
 
 
-def search_shopping(q):
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
+def search_shopping(q, serpapi_key):
+    #_, serpapi_key = serpapi_key_manager.get_best_api_key()
     params = {
         "engine": "google_shopping",
         "q": q,
@@ -73,9 +73,9 @@ def search_shopping(q):
     ]
     return results_with_titles_and_links
 
-def search_places(q):
+def search_places(q, serpapi_key):
     """Search for places using Google Search API, возвращает только первые 5 результатов."""
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
+    #_, serpapi_key = serpapi_key_manager.get_best_api_key()
     params = {
         "q": q,
         #'location': 'Russia',
@@ -102,3 +102,23 @@ def search_places(q):
     coordinates = results.get('local_map', {}).get('gps_coordinates', None)
 
     return good_results, results_with_titles_and_links, coordinates
+
+def yandex_search(q, serpapi_key):
+    params = {
+        "lr": '225', 
+        "engine": "yandex",
+        "yandex_domain": 'yandex.ru',
+        "text": q,
+        "api_key": serpapi_key
+        }
+
+    search = GoogleSearch(params)
+    results = search.get_dict()
+
+    results_with_titles_and_links = [
+        (item['title'], item['link'], item['snippet'], item['displayed_link'])
+        for item in results.get('organic_results', [])
+        if 'title' in item and 'link' in item
+    ]
+
+    return results_with_titles_and_links
