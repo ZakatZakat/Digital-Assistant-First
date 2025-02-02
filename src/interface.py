@@ -1,27 +1,24 @@
 #Импорты стандартной библиотеки
 import logging
-import subprocess
 import json
 import tempfile
 import pymupdf
 import os
 import yaml
 import pandas as pd
-from st_aggrid import AgGrid, GridOptionsBuilder
-# Импорты сторонних библиотек
 import streamlit as st
-from dotenv import load_dotenv
+
+# Импорты сторонних библиотек
 from langchain_community.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_community.llms.ollama import Ollama
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from serpapi import GoogleSearch
 from src.utils.check_serp_response import APIKeyManager
+from src.internet_search import *
 
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
@@ -40,120 +37,6 @@ def load_config_yaml(config_file="config.yaml"):
     with open(config_file, "r", encoding="utf-8") as f:
         config_yaml = yaml.safe_load(f)
     return config_yaml
-
-def search_map(q, coordinates):
-    # Проверяем, есть ли координаты и их значения
-    if not coordinates or not coordinates.get('latitude') or not coordinates.get('longitude'):
-        return []  # Возвращаем пустоту, если координаты отсутствуют
-    
-    latitude = coordinates.get('latitude')
-    longitude = coordinates.get('longitude')
-    zoom_level = "14z"  # Укажите необходимый уровень масштабирования карты
-
-    # Формируем параметр ll из coordinates
-    ll = f"@{latitude},{longitude},{zoom_level}"
-
-    # Параметры запроса
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "engine": "google_maps",
-        "q": q,
-        "ll": ll,
-        "api_key": serpapi_key
-    }
-
-    search = GoogleSearch(params)
-    results = search.get_dict()
-
-    good_results = [
-    [
-        item.get('title', 'Нет информации'),
-        item.get('rating', 'Нет информации'),
-        item.get('reviews', 'Нет информации'),
-        item.get('address', 'Нет информации'),
-        item.get('website', 'Нет информации'),
-        item.get('phone', 'Нет информации'),
-
-    ]
-    for item in results.get('local_results', [])
-    ]
-
-    return good_results
-
-
-def search_shopping(q):
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "engine": "google_shopping",
-        "q": q,
-        "api_key": serpapi_key
-        }
-
-    search = GoogleSearch(params)
-    results = search.get_dict()
-    results_with_titles_and_links = [
-        (item['title'], item['link'])
-        for item in results.get('organic_results', [])
-        if 'title' in item and 'link' in item
-    ]
-    return results_with_titles_and_links
-
-def search_places(q):
-    """Search for places using Google Search API, возвращает только первые 5 результатов."""
-    _, serpapi_key = serpapi_key_manager.get_best_api_key()
-    params = {
-        "q": q,
-        #'location': 'Russia',
-        "hl": "ru",
-        "gl": "ru",
-        "google_domain": "google.com",
-        "api_key": serpapi_key
-    }
-
-    search = GoogleSearch(params)
-    results = search.get_dict()
-
-    good_results = [
-    item['snippet']
-    for item in results.get('organic_results', [])
-    if 'snippet' in item]
-
-    results_with_titles_and_links = [
-        (item['title'], item['link'])
-        for item in results.get('organic_results', [])
-        if 'title' in item and 'link' in item
-    ]
-
-    coordinates = results.get('local_map', {}).get('gps_coordinates', None)
-
-    # Укажите путь к папке, где вы хотите сохранить файл
-    output_folder = "./"
-    output_file = "results.json"
-
-    # Создайте папку, если она не существует
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Полный путь к файлу
-    output_path = os.path.join(output_folder, output_file)
-
-    # Сохранение данных в файл JSON
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=4)
-
-    print(f"Результаты сохранены в: {output_path}")
-
-    return good_results, results_with_titles_and_links, coordinates
-
-def get_ollama_models():
-    """Получить список моделей из Ollama."""
-    try:
-        result = subprocess.run(['ollama', 'list'], stdout=subprocess.PIPE, text=True)
-        output = result.stdout.strip()
-        models = [line.strip() for line in output.split('\n') if line.strip()]
-        return models
-    except Exception as e:
-        logger.error(f"Ошибка при получении списка моделей: {e}")
-        return []
 
 def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
@@ -176,14 +59,18 @@ def model_response_generator(retriever, model, config):
     
     # Если интернет-поиск включён, вызываем функции поиска, иначе возвращаем пустую строку
     if config_yaml.get("internet_search", False):
-        shopping_res = search_shopping(user_input)
-        internet_res, links, coordinates = search_places(user_input)
-        maps_res = search_map(user_input, coordinates)
+        _, serpapi_key = serpapi_key_manager.get_best_api_key()
+
+        shopping_res = search_shopping(user_input, serpapi_key)
+        internet_res, links, coordinates = search_places(user_input, serpapi_key)
+        maps_res = search_map(user_input, coordinates, serpapi_key)
+        yandex_res = yandex_search(user_input, serpapi_key)
     else:
         shopping_res = ""
         internet_res = ""
         links = ""
         maps_res = ""
+        yandex_res = ""
     
     # Если система работает в режимах RAG или File
     if config['System_type'] in ['RAG', 'File']:
@@ -198,7 +85,8 @@ def model_response_generator(retriever, model, config):
             internet_res=internet_res,
             links=links,
             shopping_res=shopping_res,
-            maps_res=maps_res
+            maps_res=maps_res,
+            yandex_res=yandex_res
         )
 
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
