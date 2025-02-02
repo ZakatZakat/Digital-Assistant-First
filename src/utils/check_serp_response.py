@@ -44,7 +44,7 @@ class APIKeyManager:
         self.scheduler = BackgroundScheduler()
         self.start_scheduler(path_to_file)
         self.path_to_file = path_to_file
-        print(path_to_file)
+        
 
     def start_scheduler(self, path_to_file):
         """Starts the scheduler with an update every hour"""
