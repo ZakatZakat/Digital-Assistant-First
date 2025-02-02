@@ -7,7 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from typing import Optional
 
-def check_api_keys(path_to_file="api_keys_status.xlsx"):
+def check_api_keys(path_to_file):
     # Read the existing data
     df = pd.read_excel(path_to_file)
 
@@ -36,23 +36,25 @@ def check_api_keys(path_to_file="api_keys_status.xlsx"):
 
     # Save the updated data back to the file
     df.to_excel(path_to_file, index=False)
-    # print(df)
+    print(df)
     return df
 
 class APIKeyManager:
-    def __init__(self, path_to_file="api_keys_status.xlsx"):
+    def __init__(self, path_to_file):
         self.scheduler = BackgroundScheduler()
-        self.start_scheduler()
+        self.start_scheduler(path_to_file)
         self.path_to_file = path_to_file
+        
 
-    def start_scheduler(self):
+    def start_scheduler(self, path_to_file):
         """Starts the scheduler with an update every hour"""
         self.scheduler.add_job(
             check_api_keys,
             'interval',
             minutes=1,
             id='update_api_keys_status',
-            next_run_time=datetime.now()  # Run the first time immediately
+            next_run_time=datetime.now(),
+            args=[path_to_file]  # Run the first time immediately
         )
         self.scheduler.start()
 
@@ -61,7 +63,7 @@ class APIKeyManager:
         Reads the status file and returns the name of the key with the highest number of available requests,
         ignoring SERP_KEY_5
         """
-        #df = check_api_keys(self.path_to_file)
+
         try:
             # Check if the file exists
             if not os.path.exists(self.path_to_file):

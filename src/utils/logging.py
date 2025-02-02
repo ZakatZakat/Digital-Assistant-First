@@ -9,17 +9,33 @@ def setup_logging(logging_path='logs/digital_assistant.log'):
     log_dir = Path('logs')
     log_dir.mkdir(exist_ok=True)
     
-    # Настраиваем формат логов
+    # Получаем логгер с именем "digital_assistant"
+    logger = logging.getLogger("digital_assistant")
+    logger.setLevel(logging.INFO)
+    
+    # Очищаем существующие обработчики (если они есть), чтобы избежать дублирования
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
+    # Задаем формат логов
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(
-        level=logging.INFO,
-        format=log_format,
-        handlers=[
-            logging.FileHandler(logging_path, encoding='utf-8'),
-            logging.StreamHandler()
-        ]
-    )
-    return logging.getLogger(__name__)
+    formatter = logging.Formatter(log_format)
+    
+    # Создаем обработчик для записи в файл
+    file_handler = logging.FileHandler(logging_path, encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    
+    # Создаем обработчик для вывода в консоль
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
+    
+    # Добавляем обработчики к логгеру
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
+    
+    return logger
 
 def log_api_call(logger: logging.Logger, source: str, request: str, response: str, error: str = None):
     """
@@ -40,5 +56,6 @@ def log_api_call(logger: logging.Logger, source: str, request: str, response: st
     if error:
         log_entry['error'] = error
     
+    logger.setLevel(logging.INFO)
     logger.info(f"API Call: {json.dumps(log_entry, ensure_ascii=False)}")
     
