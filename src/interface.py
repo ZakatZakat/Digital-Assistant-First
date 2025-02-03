@@ -18,7 +18,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from src.utils.check_serp_response import APIKeyManager
-
+from src.offergen.agent import validation_agent
+from src.offergen.utils import get_system_prompt_for_offers
+from pydantic_ai import Agent
 from src.utils.logging import setup_logging, log_api_call
 from src.internet_search import *
 
@@ -89,15 +91,36 @@ def model_response_generator(retriever, model, config):
 
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
             if config['Model'].startswith('gpt'):
-                prompt = ChatPromptTemplate.from_messages(
-                    [
+                # Create new event loop for async operation
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                # Run validation in the event loop
+                offer_validation_response = loop.run_until_complete(
+                    validation_agent.run(user_input)
+                ).data
+
+                if not offer_validation_response.is_valid:
+                    logger.info("Offer validation failed")
+                    prompt = ChatPromptTemplate.from_messages([
                         ("system", formatted_prompt),
                         ("human", "User query: {input}\nAdditional context: {context}")
-                    ]
-                )
+                    ])
+                else:
+                    logger.info("Offer validation passed")
+                    system_prompt = get_system_prompt_for_offers(offer_validation_response, user_input)
+                    prompt = ChatPromptTemplate.from_messages([
+                        ("system", system_prompt),
+                        ("human", "User query: {input}\nAdditional context: {context}")
+                    ])
+    
                 question_answer_chain = create_stuff_documents_chain(model, prompt)
                 rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-
+    
                 full_answer = ""
                 for chunk in rag_chain.stream({"input": user_input}):
                     if "answer" in chunk:

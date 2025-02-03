@@ -1,4 +1,4 @@
-internet_search: True
+internet_search: False # TODO: change to True
 model: gpt-4o-mini
 
 system:

@@ -134,6 +134,10 @@ def main():
         "history": ['Off'],
     }
 
+    # Инициализация векторного хранилища для генерации предложений 
+    # проиводится в модуле offergen в момент импорта
+    from src import offergen
+
     defaults = {
         'config_applied': False,
         'config': None,
