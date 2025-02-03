@@ -20,6 +20,7 @@ faiss-cpu = ">=1.10.0,<2.0.0"
 openpyxl = ">=3.1.5,<4.0.0"
 pydantic-ai = {extras = ["logfire"], version = ">=0.0.21,<0.0.22"}
 chromadb = "^0.6.3"
+langchain-chroma = "^0.2.1"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"

@@ -7,9 +7,11 @@ import os
 import yaml
 import pandas as pd
 import streamlit as st
+import asyncio
 
 # Импорты сторонних библиотек
-from langchain_community.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -17,8 +19,10 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from src.utils.check_serp_response import APIKeyManager
 
+from src.utils.check_serp_response import APIKeyManager
+from src.offergen.agent import validation_agent
+from src.offergen.utils import get_system_prompt_for_offers
 from src.utils.logging import setup_logging, log_api_call
 from src.internet_search import *
 
@@ -89,12 +93,33 @@ def model_response_generator(retriever, model, config):
 
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
             if config['Model'].startswith('gpt'):
-                prompt = ChatPromptTemplate.from_messages(
-                    [
+                
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                # Run validation in the event loop
+                # other wise it will be blocked by the main thread and fail UI
+                offer_validation_response = loop.run_until_complete(
+                    validation_agent.run(user_input)
+                ).data
+                logger.info(f"Offer validation response: {offer_validation_response}")
+                if not offer_validation_response.is_valid:
+                    logger.info("Offer validation failed")
+                    prompt = ChatPromptTemplate.from_messages([
                         ("system", formatted_prompt),
                         ("human", "User query: {input}\nAdditional context: {context}")
-                    ]
-                )
+                    ])
+                else:
+                    logger.info("Offer validation passed")
+                    system_prompt = get_system_prompt_for_offers(offer_validation_response, user_input)
+                    prompt = ChatPromptTemplate.from_messages([
+                        ("system", system_prompt),
+                        ("human", "User query: {input}\nAdditional context: {context}")
+                    ])
+    
                 question_answer_chain = create_stuff_documents_chain(model, prompt)
                 rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
