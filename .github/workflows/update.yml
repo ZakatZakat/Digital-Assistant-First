@@ -24,4 +24,6 @@ jobs:
             cd /root/Digital-Assistant-First 
             git checkout master
             git pull origin master
+            touch .env
+            echo ${{ secrets.OPENAI_KEY }} > .env
 
