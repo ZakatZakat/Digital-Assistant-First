@@ -6,7 +6,8 @@ from src.offergen.vector_db import VectorDBService, Context, SearchResponse
 from src.utils.logging import setup_logging
 from src.utils.paths import ROOT_DIR as root_dir
 
-logger = setup_logging(logging_path=str(root_dir / 'logs' / 'digital_assistant.log'))
+logger = setup_logging(logging_path=str(root_dir / "logs" / "digital_assistant.log"))
+
 
 def load_rag_examples(
     offers_db: Dict[int, Offer], query: str, db_service: VectorDBService
@@ -30,7 +31,9 @@ def load_rag_examples(
     return offers, scores, offer_ids
 
 
-def get_system_prompt_for_offers(validation_result: PromptValidation, prompt: str) -> str:
+def get_system_prompt_for_offers(
+    validation_result: PromptValidation, prompt: str
+) -> str:
     if not validation_result.is_valid:
         raise ValueError(
             f"Unable to generate system prompt for prompt: {prompt}. "
@@ -38,12 +41,16 @@ def get_system_prompt_for_offers(validation_result: PromptValidation, prompt: st
             "Please ensure the request meets validation requirements."
         )
 
-    logger.info(f"Loading RAG examples for prompt: {validation_result.modified_prompt_for_rag_search}")
+    logger.info(
+        f"Loading RAG examples for prompt: {validation_result.modified_prompt_for_rag_search}"
+    )
     offers, scores, offer_ids = load_rag_examples(
         offers_db, validation_result.modified_prompt_for_rag_search, db_service
     )
-    logger.info(f"RAG examples loaded for prompt: {validation_result.modified_prompt_for_rag_search}")
-    
+    logger.info(
+        f"RAG examples loaded for prompt: {validation_result.modified_prompt_for_rag_search}"
+    )
+
     # Create enhanced prompt with RAG context
     rag_context = "\nRelevant offer examples:\n"
     for offer, score, offer_id in zip(offers, scores, offer_ids):
@@ -58,9 +65,7 @@ def get_system_prompt_for_offers(validation_result: PromptValidation, prompt: st
     enhanced_prompt = f"{rag_context}\nUser request: {prompt}"
 
     # Get offer matches
-    deps = RagDeps(
-        k=validation_result.number_of_offers_to_generate, offers=offers_db
-    )
+    deps = RagDeps(k=validation_result.number_of_offers_to_generate, offers=offers_db)
     result = offer_matching_agent.run_sync(enhanced_prompt, deps=deps)
     logger.info(f"Offer matching agent result: {result.data}")
 

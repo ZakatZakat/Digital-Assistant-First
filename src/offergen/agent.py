@@ -10,6 +10,7 @@ from src.offergen import Offer, offersgen_config
 # disabling logfire for now
 logfire.configure(send_to_logfire="if-token-present")
 
+
 # Models for structured responses
 class PromptValidation(BaseModel):
     is_valid: bool = Field(

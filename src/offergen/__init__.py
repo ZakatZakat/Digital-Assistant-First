@@ -9,19 +9,22 @@ from src.utils.paths import ROOT_DIR as root_dir
 from src.utils.logging import setup_logging
 from src.offergen.vector_db import VectorDBService, instantiate_db_service
 
+
 def load_config_yaml(config_file=root_dir / "config.yaml"):
     """Загрузить конфигурацию из YAML-файла."""
     with open(config_file, "r", encoding="utf-8") as f:
         config_yaml = yaml.safe_load(f)
     return config_yaml
 
+
 offersgen_config = load_config_yaml()["offersgen"]
 
-logger = setup_logging(logging_path=str(root_dir / 'logs' / 'digital_assistant.log'))
+logger = setup_logging(logging_path=str(root_dir / "logs" / "digital_assistant.log"))
+
 
 class Offer(BaseModel):
     """Model for default offer data in database"""
-    
+
     category: str
     name: str
     image_url: str
@@ -63,6 +66,7 @@ class DBServiceSingleton:
             )
             logger.info(f"Rag db_service for offers generation initialized")
         return cls._instance
+
 
 db_service_config = offersgen_config["db_service"]
 db_service = DBServiceSingleton.get_instance(

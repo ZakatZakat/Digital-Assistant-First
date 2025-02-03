@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from src.utils.logging import setup_logging
 from src.utils.paths import ROOT_DIR as root_dir
 
-logger = setup_logging(logging_path=str(root_dir / 'logs' / 'digital_assistant.log'))
+logger = setup_logging(logging_path=str(root_dir / "logs" / "digital_assistant.log"))
 
 
 class Context(BaseModel):
@@ -28,14 +28,16 @@ class Context(BaseModel):
 class SearchRequest(BaseModel):
     """Search request parameters."""
 
-    query: str = Field(description="Search query")  
+    query: str = Field(description="Search query")
     k: int = Field(description="Number of results to return", default=5)
 
 
 class SearchResponse(BaseModel):
     """Search response with documents and relevance scores."""
 
-    documents: List[Context] = Field(description="List of documents with context and metadata")
+    documents: List[Context] = Field(
+        description="List of documents with context and metadata"
+    )
     scores: List[float] = Field(description="List of scores for each document")
 
 
@@ -44,7 +46,7 @@ class VectorDBService:
 
     Processes JSON documents into chunks, embeds them using OpenAI,
     and provides semantic search functionality via Chroma vector store.
-    
+
     If persist_directory is not empty, the vectorstore will be loaded from it.
     If persist_directory is empty, the vectorstore will be created from scratch.
     It takes some time to create the vectorstore from scratch.
@@ -85,10 +87,13 @@ class VectorDBService:
             openai_api_key=self.openai_api_key,
         )
         self.json_data = self._load_json(json_path)
-        
-        
+
         # Try to load existing vectorstore if persist_directory exists and is not empty
-        if persist_directory and os.path.exists(persist_directory) and os.listdir(persist_directory):
+        if (
+            persist_directory
+            and os.path.exists(persist_directory)
+            and os.listdir(persist_directory)
+        ):
             self.documents, self.text_splitter, self.splits = None, None, None
             self.vectorstore = Chroma(
                 persist_directory=persist_directory,
@@ -97,7 +102,7 @@ class VectorDBService:
             )
         else:
             # Create new vectorstore if no persist_directory or it's empty
-            
+
             self.documents = self._prepare_documents()
 
             self.text_splitter = RecursiveCharacterTextSplitter(
@@ -106,7 +111,7 @@ class VectorDBService:
                 separators=["\n\n", "\n", ".", " ", ""],
             )
             self.splits = self.text_splitter.split_documents(self.documents)
-            
+
             self.vectorstore = Chroma.from_documents(
                 documents=self.splits,
                 embedding=self.embeddings,
