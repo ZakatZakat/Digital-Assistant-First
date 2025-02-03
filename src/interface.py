@@ -233,10 +233,6 @@ def model_response_generator(retriever, model, config):
                     {"role": "system", "content": system_prompt_tickets},
                     {"role": "user", "content": user_input}
                 ]
-                messages = [
-                    {"role": "system", "content": system_prompt_tickets},
-                    {"role": "user", "content": user_input}
-                ]
 
                 # Вызываем модель с параметром stream=False
                 response = model.invoke(
