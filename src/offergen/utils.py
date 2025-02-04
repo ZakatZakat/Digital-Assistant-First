@@ -70,9 +70,12 @@ def get_system_prompt_for_offers(
     logger.info(f"Offer matching agent result: {result.data}")
 
     # Stage 3: Format the output
-    if result and result.data.matches:
+    if result and result.data.matches and len(set([match.offer_id for match in result.data.matches]).intersection(offers_db.keys())) > 0:
         information_about_relevant_offers = str()
         for match in result.data.matches:
+            if match.offer_id not in offers_db.keys():
+                logger.warning(f"Offer ID {match.offer_id} not found in offers database")
+                continue
             offer = offers_db[match.offer_id]
             information_about_relevant_offers += f"Offer ID: {match.offer_id}\n"
             information_about_relevant_offers += f"Offer name: {offer.name}\n"
@@ -130,3 +133,6 @@ Key requirements:
 - Keep descriptions brief and value-focused
 - Connect your response to the user's search request
 """
+    else:
+        logger.warning("No relevant offers found for the search request")
+        return """Respond in russian that no relevant offers were found for the search request."""
