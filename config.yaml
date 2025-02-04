@@ -1,5 +1,17 @@
-internet_search: True
+internet_search: True 
 model: gpt-4o-mini
+
+offersgen:
+  model: gpt-4o-mini
+  offers_db: content/json/offers/raw/offers.json
+  db_service:
+    json_path: content/json/offers/offers_by_category.json
+    chunk_overlap: 300
+    chunk_size: 700
+    dump_path: content/json/offers/offers_docs.json
+    persist_directory: content/json/offers/offers_persist_db
+    collection_name: vtb_family_offers
+
 
 system:
   system_prompt: |
