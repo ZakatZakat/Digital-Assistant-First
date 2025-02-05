@@ -28,7 +28,7 @@ from src.utils.paths import ROOT_DIR
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
 
-serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
+serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
 
 def load_config_yaml(config_file="config.yaml"):
     """Загрузить конфигурацию из YAML-файла."""
