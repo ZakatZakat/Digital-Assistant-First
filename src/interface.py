@@ -95,10 +95,9 @@ def model_response_generator(retriever, model, config):
             maps_res = ""
             #yandex_res = ""
         
+        
         # Если система работает в режимах RAG или File
         if config['System_type'] in ['RAG', 'File']:
-            
-        
             # Загрузка системного промпта из YAML-конфига
             system_prompt_template = config_yaml["system"]["system_prompt"]
             
@@ -108,7 +107,7 @@ def model_response_generator(retriever, model, config):
                 internet_res=internet_res,
                 links=links,
                 shopping_res=shopping_res,
-                maps_res=maps_res
+                maps_res=maps_res,
                 #yandex_res=yandex_res,
                 telegram_context=telegram_context
             )
