@@ -13,3 +13,4 @@ notebooks/my_notes
 **/dist
 api_keys_status.pkl
 **/__pycache__
+**/session.session
