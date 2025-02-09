@@ -1,5 +1,7 @@
-.DS_Store
-.venv
+**/.DS_Store
+**/.venv
+**/data/
+**/logs
 content/gloabal_text.txt
 .env
 checkpoints

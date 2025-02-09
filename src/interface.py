@@ -6,6 +6,7 @@ import ollama
 import tempfile
 import pymupdf
 import os
+import asyncio
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 # Импорты сторонних библиотек
@@ -24,6 +25,9 @@ from serpapi import GoogleSearch
 from src.utils.check_serp_response import APIKeyManager
 
 # Локальные импорты
+from src.telegram_system.telegram_rag import EnhancedRAGSystem
+from src.telegram_system.telegram_data_initializer import update_telegram_messages
+from src.telegram_system.telegram_data_initializer import TelegramManager
 from src.utils.kv_faiss import KeyValueFAISS
 from src.utils.paths import ROOT_DIR
 
@@ -33,10 +37,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+async def initialize_data():
+    await update_telegram_messages()
+
+asyncio.run(initialize_data())
+
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
-# serpapi_key_name, serpapi_key = serpapi_key_manager.get_best_api_key()
-# print('выбран ключ', serpapi_key)
-# serpapi_key = '8f7a24637047a7906eb5e0b4780d849c0ef50e0ebac4127091ee45773a3b3f17'
+telegram_manager = TelegramManager()
+# Инициализируем Telegram RAG Pipeline
+rag_system = EnhancedRAGSystem(
+    data_file="data/telegram_messages.json",
+    index_directory="data/"
+)
 
 def search_map(q, coordinates):
     # Проверяем, есть ли координаты и их значения
@@ -157,6 +169,17 @@ def model_response_generator(retriever, model, config):
     logger.info("Генерация ответа с использованием модели и ретривера.")
     user_input = st.session_state["messages"][-1]["content"]
 
+    telegram_results, context = rag_system.query(user_input, k=15)
+
+    telegram_context = "\n\n".join([
+        f"Категория: {result['category']}\n"
+        f"Источник: {result['metadata']['channel']}\n"
+        f"Дата: {result['metadata']['date']}\n"
+        f"Текст: {result['text']}\n"
+        f"Ссылка: {result['metadata']['link']}"
+        for result in telegram_results
+    ])
+
     # История сообщений
     if int(config['history_size']) and len(st.session_state["messages"]) > 0:
         message_list = [message['content'] for message in st.session_state["messages"]][:-1]
@@ -188,6 +211,7 @@ def model_response_generator(retriever, model, config):
     "Каждый ответ должен быть продуманным, элегантным и содержать одну законченную мысль, обогащенную конкретикой и практической ценностью. "
     "Если ответа на вопрос нет в контексте, честно сообщите об этом, но предложите альтернативные пути решения или дополнительные варианты, если это возможно. "
     "Используйте историю сообщений для построения ответа, если она предоставлена: \n\n{context}\n\n"
+    f"И дополнительный предметный контекст из telegram-каналов:\n{telegram_context, context}\n Если ссылаешься на него, не забывай о ссылках: [Сообщение](link)\n"
     "Если информация доступна из интернета, включайте её с корректными ссылками, формируя краткие и визуально понятные списки, например: " + str(internet_res) + " " + str(links) + "\n\n"
     "Когда уместно, предлагайте дополнительные объявления и рекомендации из данных: " + str(shopping_res) + "\n\n"
     "Информацию с Google Maps представляйте в виде удобной и читаемой таблицы: " + str(maps_res) + "\n\n"
