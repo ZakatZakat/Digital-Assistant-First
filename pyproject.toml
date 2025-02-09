@@ -17,7 +17,8 @@ dependencies = [
     "google-search-results (>=2.4.2,<3.0.0)",
     "apscheduler (>=3.11.0,<4.0.0)",
     "faiss-cpu (>=1.10.0,<2.0.0)",
-    "openpyxl (>=3.1.5,<4.0.0)"
+    "openpyxl (>=3.1.5,<4.0.0)",
+    "telethon (>=1.38.1,<2.0.0)"
 ]
 
 

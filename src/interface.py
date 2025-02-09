@@ -4,6 +4,7 @@ import json
 import tempfile
 import pymupdf
 import os
+import asyncio
 import yaml
 import pandas as pd
 import streamlit as st
@@ -25,10 +26,23 @@ from src.internet_search import *
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
 from src.utils.paths import ROOT_DIR
+from src.telegram_system.telegram_rag import EnhancedRAGSystem
+from src.telegram_system.telegram_data_initializer import update_telegram_messages
+from src.telegram_system.telegram_data_initializer import TelegramManager
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
 
+async def initialize_data():
+    await update_telegram_messages()
+
+asyncio.run(initialize_data())
+
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
+telegram_manager = TelegramManager()
+rag_system = EnhancedRAGSystem(
+    data_file="data/telegram_messages.json",
+    index_directory="data/"
+)
 
 def load_config_yaml(config_file="config.yaml"):
     """Загрузить конфигурацию из YAML-файла."""
@@ -40,6 +54,17 @@ def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
     config_yaml = load_config_yaml()
     user_input = st.session_state["messages"][-1]["content"]
+
+    telegram_results, context = rag_system.query(user_input, k=15)
+
+    telegram_context = "\n\n".join([
+        f"Категория: {result['category']}\n"
+        f"Источник: {result['metadata']['channel']}\n"
+        f"Дата: {result['metadata']['date']}\n"
+        f"Текст: {result['text']}\n"
+        f"Ссылка: {result['metadata']['link']}"
+        for result in telegram_results
+    ])
 
     try:
         # Формирование истории сообщений (исключая системное сообщение)
@@ -84,7 +109,8 @@ def model_response_generator(retriever, model, config):
                 links=links,
                 shopping_res=shopping_res,
                 maps_res=maps_res,
-                yandex_res=yandex_res
+                yandex_res=yandex_res,
+                telegram_context=telegram_context
             )
 
             # Создание цепочки для модели, если имя модели начинается с 'gpt'

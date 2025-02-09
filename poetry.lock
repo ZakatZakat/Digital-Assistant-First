@@ -2351,6 +2351,17 @@ files = [
 tests = ["pytest"]
 
 [[package]]
+name = "pyaes"
+version = "1.6.1"
+description = "Pure-Python Implementation of the AES block-cipher and common modes of operation"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pyaes-1.6.1.tar.gz", hash = "sha256:02c1b1405c38d3c370b085fb952dd8bea3fadcee6411ad99f312cc129c536d8f"},
+]
+
+[[package]]
 name = "pyarrow"
 version = "19.0.0"
 description = "Python library for Apache Arrow"
@@ -2404,6 +2415,18 @@ files = [
 
 [package.extras]
 test = ["cffi", "hypothesis", "pandas", "pytest", "pytz"]
+
+[[package]]
+name = "pyasn1"
+version = "0.6.1"
+description = "Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "pyasn1-0.6.1-py3-none-any.whl", hash = "sha256:0d632f46f2ba09143da3a8afe9e33fb6f92fa2320ab7e886e2d0f7672af84629"},
+    {file = "pyasn1-0.6.1.tar.gz", hash = "sha256:6f580d2bdd84365380830acf45550f2511469f673cb4a5ae3857a3170128b034"},
+]
 
 [[package]]
 name = "pycparser"
@@ -3175,6 +3198,21 @@ files = [
 ]
 
 [[package]]
+name = "rsa"
+version = "4.9"
+description = "Pure-Python RSA implementation"
+optional = false
+python-versions = ">=3.6,<4"
+groups = ["main"]
+files = [
+    {file = "rsa-4.9-py3-none-any.whl", hash = "sha256:90260d9058e514786967344d0ef75fa8727eed8a7d2e43ce9f4bcf1b536174f7"},
+    {file = "rsa-4.9.tar.gz", hash = "sha256:e38464a49c6c85d7f1351b0126661487a7e0a14a50f1675ec50eb34d4f20ef21"},
+]
+
+[package.dependencies]
+pyasn1 = ">=0.1.3"
+
+[[package]]
 name = "six"
 version = "1.17.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -3378,6 +3416,25 @@ files = [
 pandas = ">=1.4.0"
 python-decouple = "*"
 streamlit = ">=1.2"
+
+[[package]]
+name = "telethon"
+version = "1.38.1"
+description = "Full-featured Telegram client library for Python 3"
+optional = false
+python-versions = ">=3.5"
+groups = ["main"]
+files = [
+    {file = "Telethon-1.38.1-py3-none-any.whl", hash = "sha256:30c187017501bfb982b8af5659f864dda4108f77ea49cfce61e8f6fdb8a18d6e"},
+    {file = "Telethon-1.38.1.tar.gz", hash = "sha256:f9866c1e37197a0894e0c02aa56a6359bffb14a585e88e18e3e819df4fda399a"},
+]
+
+[package.dependencies]
+pyaes = "*"
+rsa = "*"
+
+[package.extras]
+cryptg = ["cryptg"]
 
 [[package]]
 name = "tenacity"
@@ -3746,4 +3803,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "3.10.14"
-content-hash = "04f20fa7b3ebde9ac61974f10cd76164c98bcdd8353aa0f629a0fdd23ed054a7"
+content-hash = "25b9d48814396d165848055d5b6ef6cf48b4ffe06b5420937fa774eaf8ee2da7"

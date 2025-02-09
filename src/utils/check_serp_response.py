@@ -36,7 +36,6 @@ def check_api_keys(path_to_file):
 
     # Save the updated data back to the file
     df.to_excel(path_to_file, index=False)
-    print(df)
     return df
 
 class APIKeyManager:
@@ -51,7 +50,7 @@ class APIKeyManager:
         self.scheduler.add_job(
             check_api_keys,
             'interval',
-            minutes=1,
+            minutes=2,
             id='update_api_keys_status',
             next_run_time=datetime.now(),
             args=[path_to_file]  # Run the first time immediately
