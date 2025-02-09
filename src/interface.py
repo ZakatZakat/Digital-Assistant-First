@@ -62,13 +62,13 @@ def model_response_generator(retriever, model, config):
             shopping_res = search_shopping(user_input, serpapi_key)
             internet_res, links, coordinates = search_places(user_input, serpapi_key)
             maps_res = search_map(user_input, coordinates, serpapi_key)
-            yandex_res = yandex_search(user_input, serpapi_key)
+            #yandex_res = yandex_search(user_input, serpapi_key)
         else:
             shopping_res = ""
             internet_res = ""
             links = ""
             maps_res = ""
-            yandex_res = ""
+            #yandex_res = ""
         
         # Если система работает в режимах RAG или File
         if config['System_type'] in ['RAG', 'File']:
@@ -83,8 +83,8 @@ def model_response_generator(retriever, model, config):
                 internet_res=internet_res,
                 links=links,
                 shopping_res=shopping_res,
-                maps_res=maps_res,
-                yandex_res=yandex_res
+                maps_res=maps_res
+                #yandex_res=yandex_res
             )
 
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
