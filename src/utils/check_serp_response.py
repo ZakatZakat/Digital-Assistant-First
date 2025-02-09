@@ -9,7 +9,7 @@ from typing import Optional
 
 def check_api_keys(path_to_file):
     # Read the existing data
-    df = pd.read_excel(path_to_file)
+    df = pd.read_csv(path_to_file, sep=';', encoding='cp1252', engine='python')
 
     for index, row in df.iterrows():
         api_key = row['API Key']
@@ -35,7 +35,8 @@ def check_api_keys(path_to_file):
                 print(f"Error checking {api_key}: {str(e)}")
 
     # Save the updated data back to the file
-    df.to_excel(path_to_file, index=False)
+    df.to_csv(path_to_file, sep=';', index=False, encoding='latin1')    
+    print(df)
     return df
 
 class APIKeyManager:
@@ -69,7 +70,7 @@ class APIKeyManager:
                 print(f"File {self.path_to_file} does not exist")
 
             # Read the dataframe
-            df = pd.read_excel(self.path_to_file)
+            df = pd.read_csv(self.path_to_file, sep=';', encoding='cp1252', engine='python')
 
             if df.empty:
                 return None

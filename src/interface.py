@@ -37,7 +37,7 @@ async def initialize_data():
 
 asyncio.run(initialize_data())
 
-serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.xlsx")
+serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
 telegram_manager = TelegramManager()
 rag_system = EnhancedRAGSystem(
     data_file="data/telegram_messages.json",
@@ -87,13 +87,13 @@ def model_response_generator(retriever, model, config):
             shopping_res = search_shopping(user_input, serpapi_key)
             internet_res, links, coordinates = search_places(user_input, serpapi_key)
             maps_res = search_map(user_input, coordinates, serpapi_key)
-            yandex_res = yandex_search(user_input, serpapi_key)
+            #yandex_res = yandex_search(user_input, serpapi_key)
         else:
             shopping_res = ""
             internet_res = ""
             links = ""
             maps_res = ""
-            yandex_res = ""
+            #yandex_res = ""
         
         # Если система работает в режимах RAG или File
         if config['System_type'] in ['RAG', 'File']:
@@ -108,8 +108,8 @@ def model_response_generator(retriever, model, config):
                 internet_res=internet_res,
                 links=links,
                 shopping_res=shopping_res,
-                maps_res=maps_res,
-                yandex_res=yandex_res,
+                maps_res=maps_res
+                #yandex_res=yandex_res,
                 telegram_context=telegram_context
             )
 
