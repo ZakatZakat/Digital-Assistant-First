@@ -154,8 +154,7 @@ def model_response_generator(retriever, model, config):
                 shopping_res=shopping_res,
                 maps_res=maps_res,
                 #yandex_res=yandex_res,
-                telegram_context=telegram_context,
-                aviasales_url=aviasales_url
+                telegram_context=telegram_context
             )
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
@@ -215,15 +214,17 @@ def handle_user_input(retriever, model, config):
             for chunk in model_response_generator(retriever, model, config):
                 response_text += chunk["answer"]
 
-                # Если в chunk присутствует ключ aviasales_link с непустым значением,
-                # добавляем его к response_text на новой строке
-                if chunk.get("aviasales_link"):
-                    response_text += f"\n\nДанные из Авиасейлс - {chunk['aviasales_link']}"
-
-                # Обновляем placeholder с полным текстом
+                # Проверяем наличие ключа aviasales_link
+                if "aviasales_link" in chunk:
+                    aviasales_link = chunk["aviasales_link"]
+                    # Если значение непустое, добавляем с префиксом, иначе просто добавляем его (обычно пустое)
+                    if aviasales_link and aviasales_link.strip():
+                        response_text += f"\n\nДанные из Авиасейлс - {aviasales_link}"
+                    else:
+                        response_text += f"\n\n{aviasales_link}"
+                
                 response_placeholder.markdown(response_text)
                 
-                # Обновляем maps_res, если он есть
                 if isinstance(chunk.get("maps_res"), list):
                     maps_res = chunk["maps_res"]
 
