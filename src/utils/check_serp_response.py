@@ -51,7 +51,7 @@ class APIKeyManager:
         self.scheduler.add_job(
             check_api_keys,
             'interval',
-            minutes=2,
+            minutes=1,
             id='update_api_keys_status',
             next_run_time=datetime.now(),
             args=[path_to_file]  # Run the first time immediately

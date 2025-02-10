@@ -29,6 +29,8 @@ from src.utils.paths import ROOT_DIR
 from src.telegram_system.telegram_rag import EnhancedRAGSystem
 from src.telegram_system.telegram_data_initializer import update_telegram_messages
 from src.telegram_system.telegram_data_initializer import TelegramManager
+from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
+
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
 
@@ -66,6 +68,35 @@ def model_response_generator(retriever, model, config):
         for result in telegram_results
     ])
 
+    messages = [
+                {"role": "system", "content": config_yaml['system']['system_prompt_tickets']},
+                {"role": "user", "content": user_input}
+                ]
+
+    # Вызываем модель с параметром stream=False
+    response = model.invoke(
+        messages,
+        stream=False
+    )
+
+    # Получаем контент из ответа
+    if hasattr(response, 'content'):
+        content = response.content
+    elif hasattr(response, 'message'):
+        content = response.message.content
+    else:
+        content = str(response)
+
+    analysis = content.strip()
+    if analysis.startswith("```json"):
+        analysis = analysis[7:]  # Remove ```json
+    if analysis.endswith("```"):
+        analysis = analysis[:-3]  # Remove trailing ```
+    analysis = analysis.strip()
+    tickets_need = json.loads(analysis)
+
+
+
     try:
         # Формирование истории сообщений (исключая системное сообщение)
         message_history = ""
@@ -94,6 +125,20 @@ def model_response_generator(retriever, model, config):
             links = ""
             maps_res = ""
             #yandex_res = ""
+
+        if tickets_need.get('response', '').lower() == 'true':
+            # Get flight options
+            aviasales_url = construct_aviasales_url(
+                tickets_need["departure_city"],
+                tickets_need["destination"],
+                tickets_need["start_date"],
+                tickets_need["end_date"],
+                tickets_need["passengers"],
+                tickets_need.get("travel_class", ""),
+            )
+        else:
+            aviasales_url = ''
+
         
         
         # Если система работает в режимах RAG или File
@@ -109,31 +154,41 @@ def model_response_generator(retriever, model, config):
                 shopping_res=shopping_res,
                 maps_res=maps_res,
                 #yandex_res=yandex_res,
-                telegram_context=telegram_context
+                telegram_context=telegram_context,
+                aviasales_url=aviasales_url
             )
-
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
-            if config['Model'].startswith('gpt'):
-                prompt = ChatPromptTemplate.from_messages(
-                    [
-                        ("system", formatted_prompt),
-                        ("human", "User query: {input}\nAdditional context: {context}")
-                    ]
-                )
-                question_answer_chain = create_stuff_documents_chain(model, prompt)
-                rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+        # Создание цепочки для модели, если имя модели начинается с 'gpt'
+        if config['Model'].startswith('gpt'):
+            # Формируем шаблон сообщений для запроса
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", formatted_prompt),
+                ("human", "User query: {input}\nAdditional context: {context}")
+            ])
+            
+            # Форматируем сообщения, подставляя входные данные пользователя
+            messages = prompt.format(input=user_input, context="")  # Если дополнительного контекста нет, можно оставить пустую строку
+            
+            # Вызываем модель напрямую без retrieval chain
+            response = model.invoke(messages, stream=False)
+            
+            # Извлекаем ответ из модели (поддержка разных вариантов формата ответа)
+            if hasattr(response, 'content'):
+                answer = response.content
+            elif hasattr(response, 'message'):
+                answer = response.message.content
+            else:
+                answer = str(response)
+            
+            # Выводим ответ вместе с дополнительными данными (например, maps_res)
+            yield {"answer": answer, "maps_res": maps_res, 'aviasales_link': aviasales_url}
 
-                full_answer = ""
-                for chunk in rag_chain.stream({"input": user_input}):
-                    if "answer" in chunk:
-                        full_answer += chunk["answer"]
-                        yield {"answer": chunk["answer"], "maps_res": maps_res}
-
+            
             log_api_call(
                     logger=logger,
                     source=f"LLM ({config['Model']})",
                     request=user_input,
-                    response=full_answer,
+                    response=answer,
                 )
     except Exception as e:
         log_api_call(
@@ -159,7 +214,16 @@ def handle_user_input(retriever, model, config):
             maps_res = []  # Инициализируем maps_res
             for chunk in model_response_generator(retriever, model, config):
                 response_text += chunk["answer"]
+
+                # Если в chunk присутствует ключ aviasales_link с непустым значением,
+                # добавляем его к response_text на новой строке
+                if chunk.get("aviasales_link"):
+                    response_text += f"\n\nДанные из Авиасейлс - {chunk['aviasales_link']}"
+
+                # Обновляем placeholder с полным текстом
                 response_placeholder.markdown(response_text)
+                
+                # Обновляем maps_res, если он есть
                 if isinstance(chunk.get("maps_res"), list):
                     maps_res = chunk["maps_res"]
 
