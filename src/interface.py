@@ -219,7 +219,7 @@ def handle_user_input(retriever, model, config):
                     aviasales_link = chunk["aviasales_link"]
                     # Если значение непустое, добавляем с префиксом, иначе просто добавляем его (обычно пустое)
                     if aviasales_link and aviasales_link.strip():
-                        response_text += f"\n\nДанные из Авиасейлс - {aviasales_link}"
+                        response_text += f"\n\n### Данные из Авиасейлс \n **Ссылка** - {aviasales_link}"
                     else:
                         response_text += f"\n\n{aviasales_link}"
                 
