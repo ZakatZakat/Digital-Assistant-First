@@ -8,6 +8,7 @@ import asyncio
 import yaml
 import pandas as pd
 import streamlit as st
+from html import escape
 
 # Импорты сторонних библиотек
 from langchain_community.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
@@ -22,6 +23,9 @@ from src.utils.check_serp_response import APIKeyManager
 
 from src.utils.logging import setup_logging, log_api_call
 from src.internet_search import *
+
+import requests
+import pydeck as pdk
 
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
@@ -51,6 +55,48 @@ def load_config_yaml(config_file="config.yaml"):
     with open(config_file, "r", encoding="utf-8") as f:
         config_yaml = yaml.safe_load(f)
     return config_yaml
+
+def fetch_2gis_data(user_input):
+    """
+    Получить данные из 2Гис Catalog API по заданному запросу.
+    Возвращает два списка: для таблицы и для PyDeck-карты.
+    """
+    radius = 3000
+    API_KEY = '5a45f277-3257-465c-b822-e97573c6bc0d'
+    url = (
+        "https://catalog.api.2gis.com/3.0/items"
+        f"?q={user_input}"
+        "&location=37.630866,55.752256"  # Центр Москвы
+        f"&radius={radius}"
+        "&fields=items.point,items.address,items.name,items.contact_groups,items.reviews,items.rating"
+        f"&key={API_KEY}"
+    )
+
+    response = requests.get(url)
+    data = response.json()
+    items = data.get("result", {}).get("items", [])
+
+    table_data = []
+    pydeck_data = []
+    for item in items:
+        point = item.get("point")
+        if point:
+            lat = point.get("lat")
+            lon = point.get("lon")
+            # Для таблицы
+            table_data.append({
+                "Название": item.get("name", "Нет названия"),
+                "Адрес": item.get("address_name", ""),
+                "Рейтинг": item.get("reviews", {}).get("general_rating"),
+                "Кол-во Отзывов": item.get("reviews", {}).get("org_review_count", 0),
+            })
+            # Для PyDeck
+            pydeck_data.append({
+                "name": item.get("name", "Нет названия"),
+                "lat": lat,
+                "lon": lon,
+            })
+    return table_data, pydeck_data
 
 def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
@@ -157,6 +203,15 @@ def model_response_generator(retriever, model, config):
                 telegram_context=telegram_context
             )
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
+
+            table_data = []
+            pydeck_data = []
+            if config.get('mode') == '2Gis':
+                table_data, pydeck_data = fetch_2gis_data(user_input)
+
+                
+
+
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
         if config['Model'].startswith('gpt'):
             # Формируем шаблон сообщений для запроса
@@ -179,8 +234,16 @@ def model_response_generator(retriever, model, config):
             else:
                 answer = str(response)
             
+            table_data = table_data if table_data else []
+            pydeck_data = pydeck_data if pydeck_data else []
             # Выводим ответ вместе с дополнительными данными (например, maps_res)
-            yield {"answer": answer, "maps_res": maps_res, 'aviasales_link': aviasales_url}
+            yield {
+                "answer": answer,
+                "maps_res": maps_res,
+                "aviasales_link": aviasales_url,
+                "table_data": table_data,
+                "pydeck_data": pydeck_data
+            }
 
             
             log_api_call(
@@ -223,6 +286,54 @@ def handle_user_input(retriever, model, config):
                     else:
                         response_text += f"\n\n{aviasales_link}"
                 
+                if config['mode'] == '2Gis':
+                    
+                    response_text += f"\n\n### Данные из 2Гис"
+                    if 'table_data' in chunk:
+                        df = pd.DataFrame(chunk['table_data'])
+                        st.dataframe(df)  # Красивое представление таблицы
+                    else:
+                        st.warning("Ничего не найдено.")
+
+                    # Отрисовка PyDeck карты
+                    if 'pydeck_data' in chunk:
+                        df_pydeck = pd.DataFrame(chunk['pydeck_data'])
+                        st.subheader("Карта")
+                        st.pydeck_chart(
+                            pdk.Deck(
+                                map_style=None,
+                                initial_view_state=pdk.ViewState(
+                                    latitude=df_pydeck["lat"].mean(),
+                                    longitude=df_pydeck["lon"].mean(),
+                                    zoom=13
+                                ),
+                                layers=[
+                                    pdk.Layer(
+                                        "ScatterplotLayer",
+                                        data=df_pydeck,
+                                        get_position="[lon, lat]",
+                                        get_radius=30,
+                                        get_fill_color=[255, 0, 0],
+                                        pickable=True
+                                    )
+                                ],
+                                tooltip={
+                                    "html": "<b>{name}</b>",
+                                    "style": {
+                                        "color": "white"
+                                    }
+                                }
+                            )
+                        )
+                    else:
+                        st.warning("Не найдено точек для отображения на PyDeck-карте.")
+                            
+                    response_placeholder.markdown(response_text)
+                
+                    if isinstance(chunk.get("maps_res"), list):
+                        maps_res = chunk["maps_res"]
+
+
                 response_placeholder.markdown(response_text)
                 
                 if isinstance(chunk.get("maps_res"), list):
@@ -233,6 +344,8 @@ def handle_user_input(retriever, model, config):
             )
 
                # Проверка и обработка maps_res
+
+     
         
 def init_message_history(template_prompt):
     """Инициализировать историю сообщений для чата."""
@@ -347,3 +460,6 @@ def create_vector_space(config):
     vector_store = create_retriever(splitter_type, embeddings_model, documents, chunk_size)
     
     return vector_store
+
+
+ 
