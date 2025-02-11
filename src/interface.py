@@ -8,6 +8,7 @@ import asyncio
 import yaml
 import pandas as pd
 import streamlit as st
+from html import escape
 
 # Импорты сторонних библиотек
 from langchain_community.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
@@ -22,6 +23,9 @@ from src.utils.check_serp_response import APIKeyManager
 
 from src.utils.logging import setup_logging, log_api_call
 from src.internet_search import *
+
+import requests
+import pydeck as pdk
 
 # Локальные импорты
 from src.utils.kv_faiss import KeyValueFAISS
@@ -157,6 +161,61 @@ def model_response_generator(retriever, model, config):
                 telegram_context=telegram_context
             )
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
+
+            # Формируем URL для запроса к 2ГИС Catalog API с учетом радиуса
+            radius = 3000
+            API_KEY = '5a45f277-3257-465c-b822-e97573c6bc0d'
+            
+            url = (
+                "https://catalog.api.2gis.com/3.0/items"
+                f"?q={user_input}"
+                "&location=37.630866,55.752256"  # Центр Москвы
+                f"&radius={radius}"  # Динамический радиус
+                "&fields=items.point,items.address,items.name,items.contact_groups,items.reviews,items.rating"
+                f"&key={API_KEY}"
+            )
+
+            # Делаем запрос к API
+            response = requests.get(url)
+            data = response.json()
+
+            # Обрабатываем результаты
+            items = data.get("result", {}).get("items", [])
+
+            # Собираем данные для таблицы
+            table_data = []
+            pydeck_data = []
+            markers_js = []
+            coords_for_bounds = []
+
+            for item in items:
+                point = item.get("point")
+                if point:
+                    lat = point.get("lat")
+                    lon = point.get("lon")
+                    name = escape(item.get("name", "Без названия"))
+                    address = escape(item.get("address_name", ""))
+                    reviews_info = item.get("reviews", {})
+                    rating = reviews_info.get("general_rating")
+
+                    # Для таблицы
+                    table_data.append({
+                        "Название": item.get("name", "Нет названия"),
+                        "Адрес": item.get("address_name", ""),
+                        "Рейтинг": rating,
+                        "Кол-во Отзывов": reviews_info['org_review_count'],
+                    })
+
+                    # Для PyDeck
+                    pydeck_data.append({
+                        "name": item.get("name", "Нет названия"),
+                        "lat": lat,
+                        "lon": lon,
+                    })
+
+            
+
+
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
         if config['Model'].startswith('gpt'):
             # Формируем шаблон сообщений для запроса
@@ -180,7 +239,7 @@ def model_response_generator(retriever, model, config):
                 answer = str(response)
             
             # Выводим ответ вместе с дополнительными данными (например, maps_res)
-            yield {"answer": answer, "maps_res": maps_res, 'aviasales_link': aviasales_url}
+            yield {"answer": answer, "maps_res": maps_res, 'aviasales_link': aviasales_url, 'table_data': table_data, 'pydeck_data': pydeck_data}
 
             
             log_api_call(
@@ -223,6 +282,54 @@ def handle_user_input(retriever, model, config):
                     else:
                         response_text += f"\n\n{aviasales_link}"
                 
+                if config['mode'] == '2Gis':
+                    
+                    response_text += f"\n\n### Данные из 2Гис"
+                    if 'table_data' in chunk:
+                        df = pd.DataFrame(chunk['table_data'])
+                        st.dataframe(df)  # Красивое представление таблицы
+                    else:
+                        st.warning("Ничего не найдено.")
+
+                    # Отрисовка PyDeck карты
+                    if 'pydeck_data' in chunk:
+                        df_pydeck = pd.DataFrame(chunk['pydeck_data'])
+                        st.subheader("Карта")
+                        st.pydeck_chart(
+                            pdk.Deck(
+                                map_style=None,
+                                initial_view_state=pdk.ViewState(
+                                    latitude=df_pydeck["lat"].mean(),
+                                    longitude=df_pydeck["lon"].mean(),
+                                    zoom=13
+                                ),
+                                layers=[
+                                    pdk.Layer(
+                                        "ScatterplotLayer",
+                                        data=df_pydeck,
+                                        get_position="[lon, lat]",
+                                        get_radius=30,
+                                        get_fill_color=[255, 0, 0],
+                                        pickable=True
+                                    )
+                                ],
+                                tooltip={
+                                    "html": "<b>{name}</b>",
+                                    "style": {
+                                        "color": "white"
+                                    }
+                                }
+                            )
+                        )
+                    else:
+                        st.warning("Не найдено точек для отображения на PyDeck-карте.")
+                            
+                    response_placeholder.markdown(response_text)
+                
+                    if isinstance(chunk.get("maps_res"), list):
+                        maps_res = chunk["maps_res"]
+
+
                 response_placeholder.markdown(response_text)
                 
                 if isinstance(chunk.get("maps_res"), list):
@@ -347,3 +454,6 @@ def create_vector_space(config):
     vector_store = create_retriever(splitter_type, embeddings_model, documents, chunk_size)
     
     return vector_store
+
+
+ 

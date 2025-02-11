@@ -151,12 +151,19 @@ def main():
 
     initialize_session_state(defaults)
 
+    mode = st.sidebar.radio("Выберите режим:", ("Чат", "Поиск по картам 2ГИС"))
+
     # Применяем конфигурацию сразу без выбора
     if not st.session_state['config_applied']:
         apply_configuration()
     else:
         display_banner_and_title()
-        chat_interface(st.session_state['config'])
+        if mode == "Поиск по картам 2ГИС":
+            st.session_state['config']['mode'] = '2Gis'
+            chat_interface(st.session_state['config'])
+        else:
+            st.session_state['config']['mode'] = 'Chat'
+            chat_interface(st.session_state['config'])
 
 
 if __name__ == "__main__":
