@@ -38,12 +38,12 @@ from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
 
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
+
 '''
-# Если в конфигурации включён Telegram, обновляем сообщения из Telegram
-if config_yaml.get("telegram_enabled", False):
-    async def initialize_data():
-        await update_telegram_messages()
-    asyncio.run(initialize_data())
+async def initialize_data():
+    await update_telegram_messages()
+asyncio.run(initialize_data())
+
 
 if config_yaml.get("telegram_enabled", False):
     telegram_manager = TelegramManager()
@@ -56,22 +56,26 @@ else:
     telegram_manager = None
     rag_system = None
 '''
+
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
 
 
+
+'''
 def load_config_yaml(config_file="config.yaml"):
     """Загрузить конфигурацию из YAML-файла."""
     with open(config_file, "r", encoding="utf-8") as f:
         config_yaml = yaml.safe_load(f)
     return config_yaml
+'''
 
-def fetch_2gis_data(user_input):
+def fetch_2gis_data(user_input, config):
     """
     Получить данные из 2Гис Catalog API по заданному запросу.
     Возвращает два списка: для таблицы и для PyDeck-карты.
     """
     radius = 3000
-    API_KEY = config_yaml['2gis-key']
+    API_KEY = config['2gis-key']
     url = (
         "https://catalog.api.2gis.com/3.0/items"
         f"?q={user_input}"
@@ -109,15 +113,14 @@ def fetch_2gis_data(user_input):
 
 def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
-    config_yaml = load_config_yaml()
+    
     user_input = st.session_state["messages"][-1]["content"]
     
     #telegram_results, context = rag_system.query(user_input, k=15)
 
     #telegram_context = fetch_telegram_data(user_input, k=15)
-
     messages = [
-                {"role": "system", "content": config_yaml['system']['system_prompt_tickets']},
+                {"role": "system", "content": config['system_prompt_tickets']},
                 {"role": "user", "content": user_input}
                 ]
 
@@ -160,7 +163,7 @@ def model_response_generator(retriever, model, config):
             message_history = "\n".join(history_messages)
         
         # Если интернет-поиск включён, вызываем функции поиска, иначе возвращаем пустую строку
-        if config_yaml.get("internet_search", False):
+        if config.get("internet_search", False):
             _, serpapi_key = serpapi_key_manager.get_best_api_key()
 
             shopping_res = search_shopping(user_input, serpapi_key)
@@ -192,7 +195,7 @@ def model_response_generator(retriever, model, config):
         # Если система работает в режимах RAG или File
         if config['System_type'] in ['RAG', 'File']:
             # Загрузка системного промпта из YAML-конфига
-            system_prompt_template = config_yaml["system"]["system_prompt"]
+            system_prompt_template = config["system_prompt"]
             
             # Форматирование промпта с подстановкой переменных
             formatted_prompt = system_prompt_template.format(

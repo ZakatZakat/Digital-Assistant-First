@@ -50,6 +50,12 @@ def apply_configuration():
         },
         "history": st.session_state["history"],
         "history_size": st.session_state["history_size"],
+        "uploaded_file": st.session_state,
+        "telegram_enabled": st.session_state,
+        "2gis-key": st.session_state["2gis-key"],
+        "internet_search": st.session_state["internet_search"],
+        "system_prompt": st.session_state["system_prompt"],
+        "system_prompt_tickets": st.session_state["system_prompt_tickets"]
     }
 
     if st.session_state["selected_system"] == 'File' and st.session_state.get("uploaded_file") is not None:
@@ -132,6 +138,12 @@ def main():
         'history': 'On',
         'history_size': 10, 
         'uploaded_file': None,
+        'telegram_enabled': config_yaml['telegram_enabled'],
+        '2gis-key': config_yaml['2gis-key'],
+        'internet_search': config_yaml['internet_search'],
+        'system_prompt': config_yaml['system_prompt'],
+        'system_prompt_tickets': config_yaml['system_prompt_tickets']
+
     }
     
     initialize_session_state(defaults)
