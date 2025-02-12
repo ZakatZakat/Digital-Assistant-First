@@ -27,18 +27,14 @@ def load_config_yaml(config_file="config.yaml"):
 
 def load_available_models():
     """Загрузка доступных моделей из Ollama и добавление пользовательских моделей."""
-    #models = [model['name'] for model in ollama.list()['models']]
-    #models.extend(['gpt-4o', 'gpt-4o-mini'])
     models = ['gpt-4o', 'gpt-4o-mini']
     return models
 
 
 def initialize_session_state(defaults):
-    """Инициализация состояния сессии с использованием значений по умолчанию."""
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-
 
 def apply_configuration():
     """Применить выбранную конфигурацию и обновить состояние сессии."""
@@ -122,33 +118,22 @@ def main():
     load_dotenv()
     logger = setup_logging()
     config_yaml = load_config_yaml()
-    # Статичные параметры опций
-    options = {
-        "models": load_available_models(),
-        "system_types": ['RAG'],
-        "embedding_models": [
-            'OpenAIEmbeddings',
-        ],
-        "splitter_types": ['character'],
-        "chain_types": ['refine'],
-        "history": ['Off'],
-    }
-
+    
     defaults = {
         'config_applied': False,
         'config': None,
         'selected_model': config_yaml['model'],
-        'selected_system': options["system_types"][0],
-        'selected_chain_type': options["chain_types"][0],
+        'selected_system': 'RAG',
+        'selected_chain_type': 'refine',
         'selected_temperature': 0.2,
-        'selected_embedding_model': options["embedding_models"][0],
-        'selected_splitter_type': options["splitter_types"][0],
+        'selected_embedding_model': 'OpenAIEmbeddings',
+        'selected_splitter_type': 'character',
         'chunk_size': 2000,
         'history': 'On',
         'history_size': 10, 
         'uploaded_file': None,
     }
-
+    
     initialize_session_state(defaults)
 
     mode = st.sidebar.radio("Выберите режим:", ("Чат", "Поиск по картам 2ГИС"))

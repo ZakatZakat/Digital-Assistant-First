@@ -33,22 +33,31 @@ from src.utils.paths import ROOT_DIR
 from src.telegram_system.telegram_rag import EnhancedRAGSystem
 from src.telegram_system.telegram_data_initializer import update_telegram_messages
 from src.telegram_system.telegram_data_initializer import TelegramManager
+from src.telegram_system.telegram_initialization import fetch_telegram_data
 from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
 
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
+'''
+# Если в конфигурации включён Telegram, обновляем сообщения из Telegram
+if config_yaml.get("telegram_enabled", False):
+    async def initialize_data():
+        await update_telegram_messages()
+    asyncio.run(initialize_data())
 
-async def initialize_data():
-    await update_telegram_messages()
-
-asyncio.run(initialize_data())
-
+if config_yaml.get("telegram_enabled", False):
+    telegram_manager = TelegramManager()
+    rag_system = EnhancedRAGSystem(
+        data_file="data/telegram_messages.json",
+        index_directory="data/"
+    )
+else:
+    # Если Telegram отключён, rag_system не создаётся
+    telegram_manager = None
+    rag_system = None
+'''
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
-telegram_manager = TelegramManager()
-rag_system = EnhancedRAGSystem(
-    data_file="data/telegram_messages.json",
-    index_directory="data/"
-)
+
 
 def load_config_yaml(config_file="config.yaml"):
     """Загрузить конфигурацию из YAML-файла."""
@@ -62,7 +71,7 @@ def fetch_2gis_data(user_input):
     Возвращает два списка: для таблицы и для PyDeck-карты.
     """
     radius = 3000
-    API_KEY = '5a45f277-3257-465c-b822-e97573c6bc0d'
+    API_KEY = config_yaml['2gis-key']
     url = (
         "https://catalog.api.2gis.com/3.0/items"
         f"?q={user_input}"
@@ -102,17 +111,10 @@ def model_response_generator(retriever, model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
     config_yaml = load_config_yaml()
     user_input = st.session_state["messages"][-1]["content"]
+    
+    #telegram_results, context = rag_system.query(user_input, k=15)
 
-    telegram_results, context = rag_system.query(user_input, k=15)
-
-    telegram_context = "\n\n".join([
-        f"Категория: {result['category']}\n"
-        f"Источник: {result['metadata']['channel']}\n"
-        f"Дата: {result['metadata']['date']}\n"
-        f"Текст: {result['text']}\n"
-        f"Ссылка: {result['metadata']['link']}"
-        for result in telegram_results
-    ])
+    #telegram_context = fetch_telegram_data(user_input, k=15)
 
     messages = [
                 {"role": "system", "content": config_yaml['system']['system_prompt_tickets']},
@@ -200,7 +202,7 @@ def model_response_generator(retriever, model, config):
                 shopping_res=shopping_res,
                 maps_res=maps_res,
                 #yandex_res=yandex_res,
-                telegram_context=telegram_context
+                #telegram_context=telegram_context
             )
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
 
@@ -208,8 +210,6 @@ def model_response_generator(retriever, model, config):
             pydeck_data = []
             if config.get('mode') == '2Gis':
                 table_data, pydeck_data = fetch_2gis_data(user_input)
-
-                
 
 
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
@@ -224,7 +224,7 @@ def model_response_generator(retriever, model, config):
             messages = prompt.format(input=user_input, context="")  # Если дополнительного контекста нет, можно оставить пустую строку
             
             # Вызываем модель напрямую без retrieval chain
-            response = model.invoke(messages, stream=False)
+            response = model.invoke(messages, stream=True)
             
             # Извлекаем ответ из модели (поддержка разных вариантов формата ответа)
             if hasattr(response, 'content'):
