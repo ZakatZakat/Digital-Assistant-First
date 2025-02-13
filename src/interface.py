@@ -101,13 +101,6 @@ def model_response_generator(retriever, model, config):
     
     user_input = st.session_state["messages"][-1]["content"]
     
-    #telegram_results, context = rag_system.query(user_input, k=15)
-    '''
-    if config("telegram_enabled", False):
-        telegram_context = fetch_telegram_data(user_input, k=15)
-    else:
-        telegram_context = ''
-    '''
     messages = [
                 {"role": "system", "content": config['system_prompt_tickets']},
                 {"role": "user", "content": user_input}
@@ -188,70 +181,68 @@ def model_response_generator(retriever, model, config):
             telegram_context = fetch_telegram_data(user_input, rag_system, k=5)
         else:
             telegram_context = ''
-                
-        # Если система работает в режимах RAG или File
-        if config['System_type'] in ['RAG', 'File']:
-            # Загрузка системного промпта из YAML-конфига
-            system_prompt_template = config["system_prompt"]
-            
-            # Форматирование промпта с подстановкой переменных
-            formatted_prompt = system_prompt_template.format(
-                context=message_history,
-                internet_res=internet_res,
-                links=links,
-                shopping_res=shopping_res,
-                maps_res=maps_res,
-                #yandex_res=yandex_res,
-                telegram_context=telegram_context
-            )
-            # Создание цепочки для модели, если имя модели начинается с 'gpt'
-
-            table_data = []
-            pydeck_data = []
-            if config.get('mode') == '2Gis':
-                table_data, pydeck_data = fetch_2gis_data(user_input, config)
-
-
+        
+        # Загрузка системного промпта из YAML-конфига
+        system_prompt_template = config["system_prompt"]
+        
+        # Форматирование промпта с подстановкой переменных
+        formatted_prompt = system_prompt_template.format(
+            context=message_history,
+            internet_res=internet_res,
+            links=links,
+            shopping_res=shopping_res,
+            maps_res=maps_res,
+            #yandex_res=yandex_res,
+            telegram_context=telegram_context
+        )
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
-        if config['Model'].startswith('gpt'):
-            # Формируем шаблон сообщений для запроса
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", formatted_prompt),
-                ("human", "User query: {input}\nAdditional context: {context}")
-            ])
-            
-            # Форматируем сообщения, подставляя входные данные пользователя
-            messages = prompt.format(input=user_input, context="")  # Если дополнительного контекста нет, можно оставить пустую строку
-            
-            # Вызываем модель напрямую без retrieval chain
-            response = model.invoke(messages, stream=True)
-            
-            # Извлекаем ответ из модели (поддержка разных вариантов формата ответа)
-            if hasattr(response, 'content'):
-                answer = response.content
-            elif hasattr(response, 'message'):
-                answer = response.message.content
-            else:
-                answer = str(response)
-            
-            table_data = table_data if table_data else []
-            pydeck_data = pydeck_data if pydeck_data else []
-            # Выводим ответ вместе с дополнительными данными (например, maps_res)
-            yield {
-                "answer": answer,
-                "maps_res": maps_res,
-                "aviasales_link": aviasales_url,
-                "table_data": table_data,
-                "pydeck_data": pydeck_data
-            }
 
-            
-            log_api_call(
-                    logger=logger,
-                    source=f"LLM ({config['Model']})",
-                    request=user_input,
-                    response=answer,
-                )
+        table_data = []
+        pydeck_data = []
+        if config.get('mode') == '2Gis':
+            table_data, pydeck_data = fetch_2gis_data(user_input, config)
+
+
+
+        # Формируем шаблон сообщений для запроса
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", formatted_prompt),
+            ("human", "User query: {input}\nAdditional context: {context}")
+        ])
+        
+        # Форматируем сообщения, подставляя входные данные пользователя
+        messages = prompt.format(input=user_input, context="")  # Если дополнительного контекста нет, можно оставить пустую строку
+        
+        # Вызываем модель напрямую без retrieval chain
+        response = model.invoke(messages, stream=True)
+        
+        # Извлекаем ответ из модели (поддержка разных вариантов формата ответа)
+        if hasattr(response, 'content'):
+            answer = response.content
+        elif hasattr(response, 'message'):
+            answer = response.message.content
+        else:
+            answer = str(response)
+        
+        table_data = table_data if table_data else []
+        pydeck_data = pydeck_data if pydeck_data else []
+        # Выводим ответ вместе с дополнительными данными (например, maps_res)
+        yield {
+            "answer": answer,
+            "maps_res": maps_res,
+            "aviasales_link": aviasales_url,
+            "table_data": table_data,
+            "pydeck_data": pydeck_data
+        }
+
+        
+        log_api_call(
+                logger=logger,
+                source=f"LLM ({config['Model']})",
+                request=user_input,
+                response=answer,
+            )
+
     except Exception as e:
         log_api_call(
             logger=logger,
