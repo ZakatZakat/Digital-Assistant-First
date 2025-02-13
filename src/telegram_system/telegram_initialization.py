@@ -3,7 +3,7 @@ from src.telegram_system.telegram_data_initializer import update_telegram_messag
 from src.telegram_system.telegram_data_initializer import TelegramManager
 
     
-def fetch_telegram_data(user_input, k=15):  
+def fetch_telegram_data(user_input, rag_system, k):  
     telegram_results, context = rag_system.query(user_input, k=k)
 
     telegram_context = "\n\n".join([

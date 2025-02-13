@@ -44,30 +44,15 @@ async def initialize_data():
     await update_telegram_messages()
 asyncio.run(initialize_data())
 
-
-if config_yaml.get("telegram_enabled", False):
-    telegram_manager = TelegramManager()
-    rag_system = EnhancedRAGSystem(
+telegram_manager = TelegramManager()
+rag_system = EnhancedRAGSystem(
         data_file="data/telegram_messages.json",
         index_directory="data/"
     )
-else:
-    # Если Telegram отключён, rag_system не создаётся
-    telegram_manager = None
-    rag_system = None
 '''
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
 
-
-
-'''
-def load_config_yaml(config_file="config.yaml"):
-    """Загрузить конфигурацию из YAML-файла."""
-    with open(config_file, "r", encoding="utf-8") as f:
-        config_yaml = yaml.safe_load(f)
-    return config_yaml
-'''
 
 def fetch_2gis_data(user_input, config):
     """
@@ -117,8 +102,12 @@ def model_response_generator(retriever, model, config):
     user_input = st.session_state["messages"][-1]["content"]
     
     #telegram_results, context = rag_system.query(user_input, k=15)
-
-    #telegram_context = fetch_telegram_data(user_input, k=15)
+    '''
+    if config("telegram_enabled", False):
+        telegram_context = fetch_telegram_data(user_input, k=15)
+    else:
+        telegram_context = ''
+    '''
     messages = [
                 {"role": "system", "content": config['system_prompt_tickets']},
                 {"role": "user", "content": user_input}
@@ -145,7 +134,6 @@ def model_response_generator(retriever, model, config):
         analysis = analysis[:-3]  # Remove trailing ```
     analysis = analysis.strip()
     tickets_need = json.loads(analysis)
-
 
 
     try:
@@ -190,8 +178,17 @@ def model_response_generator(retriever, model, config):
         else:
             aviasales_url = ''
 
-        
-        
+        if config.get("telegram_enabled", False):
+            telegram_manager = TelegramManager()
+            rag_system = EnhancedRAGSystem(
+                data_file="data/telegram_messages.json",
+                index_directory="data/"
+            )
+
+            telegram_context = fetch_telegram_data(user_input, rag_system, k=5)
+        else:
+            telegram_context = ''
+                
         # Если система работает в режимах RAG или File
         if config['System_type'] in ['RAG', 'File']:
             # Загрузка системного промпта из YAML-конфига
@@ -205,14 +202,14 @@ def model_response_generator(retriever, model, config):
                 shopping_res=shopping_res,
                 maps_res=maps_res,
                 #yandex_res=yandex_res,
-                #telegram_context=telegram_context
+                telegram_context=telegram_context
             )
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
 
             table_data = []
             pydeck_data = []
             if config.get('mode') == '2Gis':
-                table_data, pydeck_data = fetch_2gis_data(user_input)
+                table_data, pydeck_data = fetch_2gis_data(user_input, config)
 
 
         # Создание цепочки для модели, если имя модели начинается с 'gpt'

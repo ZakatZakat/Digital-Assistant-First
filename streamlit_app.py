@@ -11,6 +11,8 @@ from langchain_openai import ChatOpenAI
 from src.interface import *
 from langchain_core.documents import Document
 
+from src.telegram_system.telegram_data_initializer import update_telegram_messages
+
 def setup_logging():
     """Настройка конфигурации логирования."""
     logging.basicConfig(
@@ -50,8 +52,8 @@ def apply_configuration():
         },
         "history": st.session_state["history"],
         "history_size": st.session_state["history_size"],
-        "uploaded_file": st.session_state,
-        "telegram_enabled": st.session_state,
+        "uploaded_file": st.session_state["uploaded_file"],
+        "telegram_enabled": st.session_state["telegram_enabled"],
         "2gis-key": st.session_state["2gis-key"],
         "internet_search": st.session_state["internet_search"],
         "system_prompt": st.session_state["system_prompt"],
@@ -150,6 +152,11 @@ def main():
 
     mode = st.sidebar.radio("Выберите режим:", ("Чат", "Поиск по картам 2ГИС"))
 
+    if st.session_state.get("telegram_enabled", False):
+        async def initialize_data():
+            await update_telegram_messages()
+        asyncio.run(initialize_data())
+    
     # Применяем конфигурацию сразу без выбора
     if not st.session_state['config_applied']:
         apply_configuration()

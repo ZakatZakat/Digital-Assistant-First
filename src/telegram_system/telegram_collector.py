@@ -12,14 +12,21 @@ class TelegramCollector:
         self.api_hash = api_hash
         self.phone_number = phone_number
         self.categories = {
+            
+            '''
             'restaurants': ['newinmoscow', 'yanrestoran',
                             'yanrestoranspb', 'doing_spb', 'night2daymoscow',
                             'night2day_spb'],
             'events': ['dubaiafisha', 'planrestoran'],
             'travel': ['ranarod', 'samokatus', 'dearpassengers'],
+            '''
+
+            'restaurants': [],
+            'events': [],
+            'travel': ['ranarod'],
         }
 
-    async def collect_messages(self, limit: int = 8) -> Dict[str, List[Dict]]:
+    async def collect_messages(self, limit: int = 100) -> Dict[str, List[Dict]]:
         async with TelegramClient('session', self.api_id, self.api_hash) as client:
             await client.start(phone=self.phone_number)
             
