@@ -2,12 +2,12 @@ from langchain_community.llms.ollama import Ollama
 from langchain_core.language_models.llms import BaseLLM
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters.base import TextSplitter
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+import yaml
 
 
 class AutoChatOpenAI(ChatOpenAI):
@@ -35,10 +35,7 @@ def load_text_splitter(config: dict) -> TextSplitter:
     # TODO: add json
 
 def load_embeddings(config: dict) -> Embeddings:
-    if config['type'] == 'huggingface':
-        return HuggingFaceEmbeddings(model_name=config['name'])
-    elif config['type'] == 'openai':
-        return OpenAIEmbeddings(config['name'])
+    return OpenAIEmbeddings(config['name'])
     
 def load_vector_store(config: dict, embeddings: Embeddings, path_to_context: str) -> VectorStore:
     text_splitter = load_text_splitter(config['text_splitter'])
@@ -49,3 +46,9 @@ def load_vector_store(config: dict, embeddings: Embeddings, path_to_context: str
     if config['type'] == 'default':
         return FAISS.from_documents(docs, embeddings)
     # TODO: add keyValueFAISS
+
+def load_config_yaml(config_file="config.yaml"):
+    """Загрузить конфигурацию из YAML-файла."""
+    with open(config_file, "r", encoding="utf-8") as f:
+        config_yaml = yaml.safe_load(f)
+    return config_yaml

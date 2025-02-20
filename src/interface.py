@@ -39,18 +39,6 @@ from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
 
-'''
-async def initialize_data():
-    await update_telegram_messages()
-asyncio.run(initialize_data())
-
-telegram_manager = TelegramManager()
-rag_system = EnhancedRAGSystem(
-        data_file="data/telegram_messages.json",
-        index_directory="data/"
-    )
-'''
-
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
 
 
@@ -178,10 +166,10 @@ def model_response_generator(retriever, model, config):
                 index_directory="data/"
             )
 
-            telegram_context = fetch_telegram_data(user_input, rag_system, k=5)
+            telegram_context = fetch_telegram_data(user_input, rag_system, k=50)
         else:
             telegram_context = ''
-        
+
         # Загрузка системного промпта из YAML-конфига
         system_prompt_template = config["system_prompt"]
         
@@ -203,7 +191,7 @@ def model_response_generator(retriever, model, config):
             table_data, pydeck_data = fetch_2gis_data(user_input, config)
 
 
-
+        
         # Формируем шаблон сообщений для запроса
         prompt = ChatPromptTemplate.from_messages([
             ("system", formatted_prompt),

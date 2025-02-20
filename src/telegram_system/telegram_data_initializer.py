@@ -1,6 +1,7 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from src.telegram_system.telegram_collector import TelegramCollector
+from src.utils.load_utils import load_config_yaml
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -11,9 +12,11 @@ api_id = os.getenv("TELEGRAM_API_ID")
 api_hash = os.getenv("TELEGRAM_API_HASH")
 phone_number = os.getenv("TELEGRAM_PHONE_NUMBER")
 
+config = load_config_yaml()
+
 async def update_telegram_messages():
     collector = TelegramCollector(api_id=api_id, api_hash=api_hash, phone_number=phone_number)
-    messages = await collector.collect_messages()
+    messages = await collector.collect_messages(config.get('collect_messages', 100))
     collector.save_messages(messages, "data/telegram_messages.json")
 
 def run_update():

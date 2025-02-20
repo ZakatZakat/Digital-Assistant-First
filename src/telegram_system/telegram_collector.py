@@ -3,6 +3,7 @@ import json
 from telethon import TelegramClient
 from typing import List, Dict
 
+
 def ensure_data_directory():
     os.makedirs("data", exist_ok=True)
 
@@ -12,18 +13,12 @@ class TelegramCollector:
         self.api_hash = api_hash
         self.phone_number = phone_number
         self.categories = {
-            
-            '''
             'restaurants': ['newinmoscow', 'yanrestoran',
                             'yanrestoranspb', 'doing_spb', 'night2daymoscow',
                             'night2day_spb'],
             'events': ['dubaiafisha', 'planrestoran'],
             'travel': ['ranarod', 'samokatus', 'dearpassengers'],
-            '''
 
-            'restaurants': [],
-            'events': [],
-            'travel': ['ranarod'],
         }
 
     async def collect_messages(self, limit: int = 100) -> Dict[str, List[Dict]]:
