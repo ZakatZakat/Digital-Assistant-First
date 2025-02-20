@@ -33,93 +33,25 @@ from src.utils.paths import ROOT_DIR
 from src.telegram_system.telegram_rag import EnhancedRAGSystem
 from src.telegram_system.telegram_data_initializer import update_telegram_messages
 from src.telegram_system.telegram_data_initializer import TelegramManager
+from src.telegram_system.telegram_initialization import fetch_telegram_data
 from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
-
+from src.geo_system.two_gis import fetch_2gis_data
+from src.utils.yndx_restaurants import (
+    analyze_restaurant_request,
+    get_restaurants_by_category,
+)
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
 
-async def initialize_data():
-    await update_telegram_messages()
-
-asyncio.run(initialize_data())
-
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
-telegram_manager = TelegramManager()
-rag_system = EnhancedRAGSystem(
-    data_file="data/telegram_messages.json",
-    index_directory="data/"
-)
 
-def load_config_yaml(config_file="config.yaml"):
-    """Загрузить конфигурацию из YAML-файла."""
-    with open(config_file, "r", encoding="utf-8") as f:
-        config_yaml = yaml.safe_load(f)
-    return config_yaml
-
-def fetch_2gis_data(user_input):
-    """
-    Получить данные из 2Гис Catalog API по заданному запросу.
-    Возвращает два списка: для таблицы и для PyDeck-карты.
-    """
-    radius = 3000
-    API_KEY = '5a45f277-3257-465c-b822-e97573c6bc0d'
-    url = (
-        "https://catalog.api.2gis.com/3.0/items"
-        f"?q={user_input}"
-        "&location=37.630866,55.752256"  # Центр Москвы
-        f"&radius={radius}"
-        "&fields=items.point,items.address,items.name,items.contact_groups,items.reviews,items.rating"
-        f"&key={API_KEY}"
-    )
-
-    response = requests.get(url)
-    data = response.json()
-    items = data.get("result", {}).get("items", [])
-
-    table_data = []
-    pydeck_data = []
-    for item in items:
-        point = item.get("point")
-        if point:
-            lat = point.get("lat")
-            lon = point.get("lon")
-            # Для таблицы
-            table_data.append({
-                "Название": item.get("name", "Нет названия"),
-                "Адрес": item.get("address_name", ""),
-                "Рейтинг": item.get("reviews", {}).get("general_rating"),
-                "Кол-во Отзывов": item.get("reviews", {}).get("org_review_count", 0),
-            })
-            # Для PyDeck
-            pydeck_data.append({
-                "name": item.get("name", "Нет названия"),
-                "lat": lat,
-                "lon": lon,
-            })
-    return table_data, pydeck_data
-
-def model_response_generator(retriever, model, config):
-    """Сгенерировать ответ с использованием модели и ретривера."""
-    config_yaml = load_config_yaml()
-    user_input = st.session_state["messages"][-1]["content"]
-
-    telegram_results, context = rag_system.query(user_input, k=15)
-
-    telegram_context = "\n\n".join([
-        f"Категория: {result['category']}\n"
-        f"Источник: {result['metadata']['channel']}\n"
-        f"Дата: {result['metadata']['date']}\n"
-        f"Текст: {result['text']}\n"
-        f"Ссылка: {result['metadata']['link']}"
-        for result in telegram_results
-    ])
-
+def aviasales_request(model, config, user_input):
+    # Вызываем модель с параметром stream=False
     messages = [
-                {"role": "system", "content": config_yaml['system']['system_prompt_tickets']},
+                {"role": "system", "content": config['system_prompt_tickets']},
                 {"role": "user", "content": user_input}
                 ]
-
-    # Вызываем модель с параметром stream=False
+    
     response = model.invoke(
         messages,
         stream=False
@@ -140,8 +72,37 @@ def model_response_generator(retriever, model, config):
         analysis = analysis[:-3]  # Remove trailing ```
     analysis = analysis.strip()
     tickets_need = json.loads(analysis)
+    return tickets_need
 
 
+def model_response_generator(model, config):
+    """Сгенерировать ответ с использованием модели и ретривера."""
+    
+    user_input = st.session_state["messages"][-1]["content"]
+    
+    tickets_need = aviasales_request(model, config, user_input)
+
+    # Анализируем запрос на предмет ресторана
+    restaurant_analysis = analyze_restaurant_request(user_input, model)
+    restaurant_context_text = ""
+    restaurants_data = []
+    if restaurant_analysis.get("restaurant_recommendation", "false").lower() == "true":
+        requested_category = restaurant_analysis.get("category", "")
+        if requested_category:
+            restaurants_data = get_restaurants_by_category(requested_category)
+            if restaurants_data:
+                # Формируем текстовый блок с информацией о найденных ресторанах
+                restaurant_context_parts = []
+                for r in restaurants_data:
+                    restaurant_context_parts.append(
+                        f"Название: {r.get('name')}\n"
+                        f"Режим работы: {r.get('working_hours')}\n"
+                        f"Адрес: {r.get('address', {}).get('street')}\n"
+                        f"Метро: {', '.join(r.get('address', {}).get('metro', []))}\n"
+                        f"Описание: {r.get('description')}\n"
+                        f"Категории: {', '.join(r.get('categories', []))}"
+                    )
+                restaurant_context_text = "\n\n".join(restaurant_context_parts)
 
     try:
         # Формирование истории сообщений (исключая системное сообщение)
@@ -158,7 +119,7 @@ def model_response_generator(retriever, model, config):
             message_history = "\n".join(history_messages)
         
         # Если интернет-поиск включён, вызываем функции поиска, иначе возвращаем пустую строку
-        if config_yaml.get("internet_search", False):
+        if config.get("internet_search", False):
             _, serpapi_key = serpapi_key_manager.get_best_api_key()
 
             shopping_res = search_shopping(user_input, serpapi_key)
@@ -184,74 +145,85 @@ def model_response_generator(retriever, model, config):
             )
         else:
             aviasales_url = ''
-
         
-        
-        # Если система работает в режимах RAG или File
-        if config['System_type'] in ['RAG', 'File']:
-            # Загрузка системного промпта из YAML-конфига
-            system_prompt_template = config_yaml["system"]["system_prompt"]
-            
-            # Форматирование промпта с подстановкой переменных
-            formatted_prompt = system_prompt_template.format(
-                context=message_history,
-                internet_res=internet_res,
-                links=links,
-                shopping_res=shopping_res,
-                maps_res=maps_res,
-                #yandex_res=yandex_res,
-                telegram_context=telegram_context
+        if config.get("telegram_enabled", False):
+            telegram_manager = TelegramManager()
+            rag_system = EnhancedRAGSystem(
+                data_file="data/telegram_messages.json",
+                index_directory="data/"
             )
-            # Создание цепочки для модели, если имя модели начинается с 'gpt'
 
-            table_data = []
-            pydeck_data = []
-            if config.get('mode') == '2Gis':
-                table_data, pydeck_data = fetch_2gis_data(user_input)
+            telegram_context = fetch_telegram_data(user_input, rag_system, k=50)
+        else:
+            telegram_context = ''
 
-                
+        if restaurant_context_text:
+            restaurants_prompt = f"{restaurant_context_text}"
+        else:
+            restaurants_prompt = ""
 
-
+        # Загрузка системного промпта из YAML-конфига
+        system_prompt_template = config["system_prompt"]
+        
+        # Форматирование промпта с подстановкой переменных
+        formatted_prompt = system_prompt_template.format(
+            context=message_history,
+            internet_res=internet_res,
+            links=links,
+            shopping_res=shopping_res,
+            maps_res=maps_res,
+            #yandex_res=yandex_res,
+            telegram_context=telegram_context,
+            yndx_restaurants=restaurants_prompt
+        )
         # Создание цепочки для модели, если имя модели начинается с 'gpt'
-        if config['Model'].startswith('gpt'):
-            # Формируем шаблон сообщений для запроса
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", formatted_prompt),
-                ("human", "User query: {input}\nAdditional context: {context}")
-            ])
-            
-            # Форматируем сообщения, подставляя входные данные пользователя
-            messages = prompt.format(input=user_input, context="")  # Если дополнительного контекста нет, можно оставить пустую строку
-            
-            # Вызываем модель напрямую без retrieval chain
-            response = model.invoke(messages, stream=False)
-            
-            # Извлекаем ответ из модели (поддержка разных вариантов формата ответа)
-            if hasattr(response, 'content'):
-                answer = response.content
-            elif hasattr(response, 'message'):
-                answer = response.message.content
-            else:
-                answer = str(response)
-            
-            table_data = table_data if table_data else []
-            pydeck_data = pydeck_data if pydeck_data else []
-            # Выводим ответ вместе с дополнительными данными (например, maps_res)
-            yield {
-                "answer": answer,
-                "maps_res": maps_res,
-                "aviasales_link": aviasales_url,
-                "table_data": table_data,
-                "pydeck_data": pydeck_data
-            }
 
-            
-            log_api_call(
-                    logger=logger,
-                    source=f"LLM ({config['Model']})",
-                    request=user_input,
-                    response=answer,
-                )
+        table_data = []
+        pydeck_data = []
+        if config.get('mode') == '2Gis':
+            table_data, pydeck_data = fetch_2gis_data(user_input, config)
+
+
+        
+        # Формируем шаблон сообщений для запроса
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", formatted_prompt),
+            ("human", "User query: {input}\nAdditional context: {context}")
+        ])
+        
+        # Форматируем сообщения, подставляя входные данные пользователя
+        messages = prompt.format(input=user_input, context="")  # Если дополнительного контекста нет, можно оставить пустую строку
+        
+        # Вызываем модель напрямую без retrieval chain
+        response = model.invoke(messages, stream=True)
+        
+        # Извлекаем ответ из модели (поддержка разных вариантов формата ответа)
+        if hasattr(response, 'content'):
+            answer = response.content
+        elif hasattr(response, 'message'):
+            answer = response.message.content
+        else:
+            answer = str(response)
+        
+        table_data = table_data if table_data else []
+        pydeck_data = pydeck_data if pydeck_data else []
+        # Выводим ответ вместе с дополнительными данными (например, maps_res)
+        yield {
+            "answer": answer,
+            "maps_res": maps_res,
+            "aviasales_link": aviasales_url,
+            "table_data": table_data,
+            "pydeck_data": pydeck_data
+        }
+
+        
+        log_api_call(
+                logger=logger,
+                source=f"LLM ({config['Model']})",
+                request=user_input,
+                response=answer,
+            )
+
     except Exception as e:
         log_api_call(
             logger=logger,
@@ -262,7 +234,7 @@ def model_response_generator(retriever, model, config):
         )
         raise
 
-def handle_user_input(retriever, model, config):
+def handle_user_input(model, config):
     """Обработать пользовательский ввод и сгенерировать ответ ассистента."""
     prompt = st.chat_input("Введите запрос здесь...")
     if prompt:
@@ -274,7 +246,7 @@ def handle_user_input(retriever, model, config):
             response_placeholder = st.empty()
             response_text = ""
             maps_res = []  # Инициализируем maps_res
-            for chunk in model_response_generator(retriever, model, config):
+            for chunk in model_response_generator(model, config):
                 response_text += chunk["answer"]
 
                 # Проверяем наличие ключа aviasales_link

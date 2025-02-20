@@ -3,6 +3,7 @@ import json
 from telethon import TelegramClient
 from typing import List, Dict
 
+
 def ensure_data_directory():
     os.makedirs("data", exist_ok=True)
 
@@ -17,9 +18,10 @@ class TelegramCollector:
                             'night2day_spb'],
             'events': ['dubaiafisha', 'planrestoran'],
             'travel': ['ranarod', 'samokatus', 'dearpassengers'],
+
         }
 
-    async def collect_messages(self, limit: int = 8) -> Dict[str, List[Dict]]:
+    async def collect_messages(self, limit: int = 100) -> Dict[str, List[Dict]]:
         async with TelegramClient('session', self.api_id, self.api_hash) as client:
             await client.start(phone=self.phone_number)
             

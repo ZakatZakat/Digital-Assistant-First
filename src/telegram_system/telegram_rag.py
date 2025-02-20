@@ -26,7 +26,7 @@ class EnhancedRAGSystem:
         self.data_file = data_file
         self.index_directory = index_directory
         self.category_classifier = CategoryClassifier()
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large", dimensions=1536)
         self.vector_stores = {}
         
         # Создаем директории, если они не существуют
@@ -88,6 +88,7 @@ class EnhancedRAGSystem:
                     query,
                     k=k
                 )
+               
                 for doc, score in results:
                     all_results.append({
                         'category': category,
@@ -95,6 +96,7 @@ class EnhancedRAGSystem:
                         'metadata': doc.metadata,
                         'relevance_score': float(score)
                     })
+                    
 
         # Сортировка по релевантности
         all_results.sort(key=lambda x: x['relevance_score'])
