@@ -35,56 +35,12 @@ from src.telegram_system.telegram_data_initializer import update_telegram_messag
 from src.telegram_system.telegram_data_initializer import TelegramManager
 from src.telegram_system.telegram_initialization import fetch_telegram_data
 from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
+from src.geo_system.two_gis import fetch_2gis_data
 
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
-
-
-def fetch_2gis_data(user_input, config):
-    """
-    Получить данные из 2Гис Catalog API по заданному запросу.
-    Возвращает два списка: для таблицы и для PyDeck-карты.
-    """
-    radius = 3000
-    API_KEY = config['2gis-key']
-    url = (
-        "https://catalog.api.2gis.com/3.0/items"
-        f"?q={user_input}"
-        "&location=37.630866,55.752256"  # Центр Москвы
-        f"&radius={radius}"
-        "&fields=items.point,items.address,items.name,items.contact_groups,items.reviews,items.rating"
-        f"&key={API_KEY}"
-    )
-
-    response = requests.get(url)
-    data = response.json()
-    items = data.get("result", {}).get("items", [])
-
-    table_data = []
-    pydeck_data = []
-    for item in items:
-        point = item.get("point")
-        if point:
-            lat = point.get("lat")
-            lon = point.get("lon")
-            # Для таблицы
-            table_data.append({
-                "Название": item.get("name", "Нет названия"),
-                "Адрес": item.get("address_name", ""),
-                "Рейтинг": item.get("reviews", {}).get("general_rating"),
-                "Кол-во Отзывов": item.get("reviews", {}).get("org_review_count", 0),
-            })
-            # Для PyDeck
-            pydeck_data.append({
-                "name": item.get("name", "Нет названия"),
-                "lat": lat,
-                "lon": lon,
-            })
-    return table_data, pydeck_data
-
-
 
 
 def model_response_generator(model, config):
@@ -163,8 +119,6 @@ def model_response_generator(model, config):
             )
         else:
             aviasales_url = ''
-
-
         
         if config.get("telegram_enabled", False):
             telegram_manager = TelegramManager()
