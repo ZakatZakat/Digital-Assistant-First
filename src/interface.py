@@ -33,7 +33,7 @@ from src.utils.paths import ROOT_DIR
 from src.telegram_system.telegram_rag import EnhancedRAGSystem
 from src.telegram_system.telegram_data_initializer import update_telegram_messages
 from src.telegram_system.telegram_data_initializer import TelegramManager
-from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
+from src.utils.aviasales_parser import construct_aviasales_url, avia_take_screenshot
 
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
@@ -141,8 +141,6 @@ def model_response_generator(retriever, model, config):
     analysis = analysis.strip()
     tickets_need = json.loads(analysis)
 
-
-
     try:
         # Формирование истории сообщений (исключая системное сообщение)
         message_history = ""
@@ -182,8 +180,23 @@ def model_response_generator(retriever, model, config):
                 tickets_need["passengers"],
                 tickets_need.get("travel_class", ""),
             )
+            # Определяем путь для скриншота (можно использовать временный файл или фиксированный путь)
+            screenshot_dir = "screenshots"
+            os.makedirs(screenshot_dir, exist_ok=True)
+            screenshot_path = os.path.join(screenshot_dir, "aviasales_screenshot.png")
+            
+            # Если хотите сделать скриншот не всей страницы, а лишь определенной её части,
+            # укажите CSS-селектор нужного элемента (например, "#ticket-section").
+            # Если вы не знаете точный селектор, можно оставить selector=None.
+            screenshot_selector = "#ticket-section"  # Замените на нужный селектор или установите None для полного скриншота
+            try:
+                avia_take_screenshot(aviasales_url, screenshot_path, selector=screenshot_selector)
+            except Exception as e:
+                logger.error(f"Error taking screenshot: {e}")
+            # Для дальнейшего использования можно вернуть путь к скриншоту вместе с авиассылкой
         else:
             aviasales_url = ''
+            screenshot_path = ''
 
         
         
