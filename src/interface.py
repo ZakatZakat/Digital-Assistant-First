@@ -34,7 +34,10 @@ from src.telegram_system.telegram_rag import EnhancedRAGSystem
 from src.telegram_system.telegram_data_initializer import update_telegram_messages
 from src.telegram_system.telegram_data_initializer import TelegramManager
 from src.utils.aviasales_parser import fetch_page_text, construct_aviasales_url
-
+from src.utils.yndx_restaurants import (
+    analyze_restaurant_request,
+    get_restaurants_by_category,
+)
 
 logger = setup_logging(logging_path='logs/digital_assistant.log')
 
@@ -141,7 +144,27 @@ def model_response_generator(retriever, model, config):
     analysis = analysis.strip()
     tickets_need = json.loads(analysis)
 
-
+    # Анализируем запрос на предмет ресторана
+    restaurant_analysis = analyze_restaurant_request(user_input, model)
+    restaurant_context_text = ""
+    restaurants_data = []
+    if restaurant_analysis.get("restaurant_recommendation", "false").lower() == "true":
+        requested_category = restaurant_analysis.get("category", "")
+        if requested_category:
+            restaurants_data = get_restaurants_by_category(requested_category)
+            if restaurants_data:
+                # Формируем текстовый блок с информацией о найденных ресторанах
+                restaurant_context_parts = []
+                for r in restaurants_data:
+                    restaurant_context_parts.append(
+                        f"Название: {r.get('name')}\n"
+                        f"Режим работы: {r.get('working_hours')}\n"
+                        f"Адрес: {r.get('address', {}).get('street')}\n"
+                        f"Метро: {', '.join(r.get('address', {}).get('metro', []))}\n"
+                        f"Описание: {r.get('description')}\n"
+                        f"Категории: {', '.join(r.get('categories', []))}"
+                    )
+                restaurant_context_text = "\n\n".join(restaurant_context_parts)
 
     try:
         # Формирование истории сообщений (исключая системное сообщение)
@@ -186,11 +209,16 @@ def model_response_generator(retriever, model, config):
             aviasales_url = ''
 
         
-        
         # Если система работает в режимах RAG или File
         if config['System_type'] in ['RAG', 'File']:
             # Загрузка системного промпта из YAML-конфига
             system_prompt_template = config_yaml["system"]["system_prompt"]
+
+            # Если ресторанный контекст найден – добавляем его отдельно
+            if restaurant_context_text:
+                restaurants_prompt = f"{restaurant_context_text}"
+            else:
+                restaurants_prompt = ""
             
             # Форматирование промпта с подстановкой переменных
             formatted_prompt = system_prompt_template.format(
@@ -200,7 +228,8 @@ def model_response_generator(retriever, model, config):
                 shopping_res=shopping_res,
                 maps_res=maps_res,
                 #yandex_res=yandex_res,
-                telegram_context=telegram_context
+                telegram_context=telegram_context,
+                yndx_restaurants=restaurants_prompt,
             )
             # Создание цепочки для модели, если имя модели начинается с 'gpt'
 
