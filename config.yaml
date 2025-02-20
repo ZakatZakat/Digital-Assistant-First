@@ -1,5 +1,5 @@
 internet_search: False
-model: gpt-4o-mini
+model: 'gpt-4o-mini'
 2gis-key: '5a45f277-3257-465c-b822-e97573c6bc0d'
 telegram_enabled: True
 collect_messages: 100

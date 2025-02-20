@@ -71,11 +71,8 @@ def apply_configuration():
 
 def initialize_model(config):
     """Инициализация языковой модели на основе конфигурации."""
-    if config["Model"].startswith('gpt'):
-        return ChatOpenAI(model=config["Model"], stream=True)
-    else:
-        # Заглушка для других моделей
-        return config["Model"]
+    return ChatOpenAI(model=config["Model"], stream=True)
+
 
 
 def initialize_vector_store(config):
@@ -107,18 +104,11 @@ def chat_interface(config):
             return
 
     model = initialize_model(config)
-
-    # Настройка ретривера в зависимости от типа системы
-    if config['System_type'] == 'default':
-        retriever = None
-    elif config['System_type'] in ['RAG', 'File']:
-        retriever = vector_store.as_retriever()
-    else:
-        retriever = None
+    
 
     init_message_history(template_prompt)
     display_chat_history()
-    handle_user_input(retriever, model, config)
+    handle_user_input(model, config)
 
 
 def main():

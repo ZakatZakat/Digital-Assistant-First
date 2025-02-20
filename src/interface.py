@@ -84,7 +84,10 @@ def fetch_2gis_data(user_input, config):
             })
     return table_data, pydeck_data
 
-def model_response_generator(retriever, model, config):
+
+
+
+def model_response_generator(model, config):
     """Сгенерировать ответ с использованием модели и ретривера."""
     
     user_input = st.session_state["messages"][-1]["content"]
@@ -95,6 +98,8 @@ def model_response_generator(retriever, model, config):
                 ]
 
     # Вызываем модель с параметром stream=False
+    
+    
     response = model.invoke(
         messages,
         stream=False
@@ -159,6 +164,8 @@ def model_response_generator(retriever, model, config):
         else:
             aviasales_url = ''
 
+
+        
         if config.get("telegram_enabled", False):
             telegram_manager = TelegramManager()
             rag_system = EnhancedRAGSystem(
@@ -241,7 +248,7 @@ def model_response_generator(retriever, model, config):
         )
         raise
 
-def handle_user_input(retriever, model, config):
+def handle_user_input(model, config):
     """Обработать пользовательский ввод и сгенерировать ответ ассистента."""
     prompt = st.chat_input("Введите запрос здесь...")
     if prompt:
@@ -253,7 +260,7 @@ def handle_user_input(retriever, model, config):
             response_placeholder = st.empty()
             response_text = ""
             maps_res = []  # Инициализируем maps_res
-            for chunk in model_response_generator(retriever, model, config):
+            for chunk in model_response_generator(model, config):
                 response_text += chunk["answer"]
 
                 # Проверяем наличие ключа aviasales_link
