@@ -42,19 +42,12 @@ logger = setup_logging(logging_path='logs/digital_assistant.log')
 
 serpapi_key_manager = APIKeyManager(path_to_file="api_keys_status.csv")
 
-
-def model_response_generator(model, config):
-    """Сгенерировать ответ с использованием модели и ретривера."""
-    
-    user_input = st.session_state["messages"][-1]["content"]
-    
+def aviasales_request(model, config, user_input):
+    # Вызываем модель с параметром stream=False
     messages = [
                 {"role": "system", "content": config['system_prompt_tickets']},
                 {"role": "user", "content": user_input}
                 ]
-
-    # Вызываем модель с параметром stream=False
-    
     
     response = model.invoke(
         messages,
@@ -76,7 +69,15 @@ def model_response_generator(model, config):
         analysis = analysis[:-3]  # Remove trailing ```
     analysis = analysis.strip()
     tickets_need = json.loads(analysis)
+    return tickets_need
 
+
+def model_response_generator(model, config):
+    """Сгенерировать ответ с использованием модели и ретривера."""
+    
+    user_input = st.session_state["messages"][-1]["content"]
+    
+    tickets_need = aviasales_request(model, config, user_input)
 
     try:
         # Формирование истории сообщений (исключая системное сообщение)

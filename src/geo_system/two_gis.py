@@ -1,3 +1,7 @@
+from src.internet_search import *
+import requests
+
+
 def fetch_2gis_data(user_input, config):
     """
     Получить данные из 2Гис Catalog API по заданному запросу.
