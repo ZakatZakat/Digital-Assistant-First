@@ -11,10 +11,14 @@ api_id = os.getenv("TELEGRAM_API_ID")
 api_hash = os.getenv("TELEGRAM_API_HASH")
 phone_number = os.getenv("TELEGRAM_PHONE_NUMBER")
 
+
 async def update_telegram_messages():
-    collector = TelegramCollector(api_id=api_id, api_hash=api_hash, phone_number=phone_number)
+    collector = TelegramCollector(
+        api_id=api_id, api_hash=api_hash, phone_number=phone_number
+    )
     messages = await collector.collect_messages()
     collector.save_messages(messages, "data/telegram_messages.json")
+
 
 def run_update():
     asyncio.run(update_telegram_messages())
@@ -29,10 +33,10 @@ class TelegramManager:
         """Starts the scheduler with an update every hour"""
         self.scheduler.add_job(
             run_update,
-            'interval',
+            "interval",
             minutes=20,
-            id='update_telegram_messages_status',
-            next_run_time=datetime.now()
+            id="update_telegram_messages_status",
+            next_run_time=datetime.now(),
         )
         self.scheduler.start()
 

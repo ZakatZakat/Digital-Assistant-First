@@ -11,10 +11,11 @@ from langchain_openai import ChatOpenAI
 from src.interface import *
 from langchain_core.documents import Document
 
+
 def setup_logging():
     """Настройка конфигурации логирования."""
     logging.basicConfig(
-        level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s'
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
     return logging.getLogger(__name__)
 
@@ -25,11 +26,12 @@ def load_config_yaml(config_file="config.yaml"):
         config_yaml = yaml.safe_load(f)
     return config_yaml
 
+
 def load_available_models():
     """Загрузка доступных моделей из Ollama и добавление пользовательских моделей."""
-    #models = [model['name'] for model in ollama.list()['models']]
-    #models.extend(['gpt-4o', 'gpt-4o-mini'])
-    models = ['gpt-4o', 'gpt-4o-mini']
+    # models = [model['name'] for model in ollama.list()['models']]
+    # models.extend(['gpt-4o', 'gpt-4o-mini'])
+    models = ["gpt-4o", "gpt-4o-mini"]
     return models
 
 
@@ -56,18 +58,21 @@ def apply_configuration():
         "history_size": st.session_state["history_size"],
     }
 
-    if st.session_state["selected_system"] == 'File' and st.session_state.get("uploaded_file") is not None:
-        config['Uploaded_file'] = st.session_state["uploaded_file"]
+    if (
+        st.session_state["selected_system"] == "File"
+        and st.session_state.get("uploaded_file") is not None
+    ):
+        config["Uploaded_file"] = st.session_state["uploaded_file"]
 
-    st.session_state['config'] = config
-    st.session_state['config_applied'] = True
+    st.session_state["config"] = config
+    st.session_state["config_applied"] = True
     time.sleep(2)
     st.rerun()
 
 
 def initialize_model(config):
     """Инициализация языковой модели на основе конфигурации."""
-    if config["Model"].startswith('gpt'):
+    if config["Model"].startswith("gpt"):
         return ChatOpenAI(model=config["Model"], stream=True)
     else:
         # Заглушка для других моделей
@@ -81,10 +86,7 @@ def initialize_vector_store(config):
 
 def display_banner_and_title():
     """Отображение баннера и заголовка."""
-    st.image(
-        'https://i.ibb.co/yPcRsgx/AMA.png',
-        use_container_width=True, width=3000
-    )
+    st.image("https://i.ibb.co/yPcRsgx/AMA.png", use_container_width=True, width=3000)
     st.title("Цифровой Помощник AMA")
 
 
@@ -95,19 +97,19 @@ def chat_interface(config):
 
     template_prompt = "Я ваш Цифровой Ассистент - пожалуйста, задайте свой вопрос."
 
-    if config['System_type'] != 'default':    
+    if config["System_type"] != "default":
         vector_store = initialize_vector_store(config)
-    
-        if vector_store is None and config['System_type'] != 'default':
+
+        if vector_store is None and config["System_type"] != "default":
             st.error("Не удалось инициализировать векторное хранилище.")
             return
 
     model = initialize_model(config)
 
     # Настройка ретривера в зависимости от типа системы
-    if config['System_type'] == 'default':
+    if config["System_type"] == "default":
         retriever = None
-    elif config['System_type'] in ['RAG', 'File']:
+    elif config["System_type"] in ["RAG", "File"]:
         retriever = vector_store.as_retriever()
     else:
         retriever = None
@@ -125,28 +127,28 @@ def main():
     # Статичные параметры опций
     options = {
         "models": load_available_models(),
-        "system_types": ['RAG'],
+        "system_types": ["RAG"],
         "embedding_models": [
-            'OpenAIEmbeddings',
+            "OpenAIEmbeddings",
         ],
-        "splitter_types": ['character'],
-        "chain_types": ['refine'],
-        "history": ['Off'],
+        "splitter_types": ["character"],
+        "chain_types": ["refine"],
+        "history": ["Off"],
     }
 
     defaults = {
-        'config_applied': False,
-        'config': None,
-        'selected_model': config_yaml['model'],
-        'selected_system': options["system_types"][0],
-        'selected_chain_type': options["chain_types"][0],
-        'selected_temperature': 0.2,
-        'selected_embedding_model': options["embedding_models"][0],
-        'selected_splitter_type': options["splitter_types"][0],
-        'chunk_size': 2000,
-        'history': 'On',
-        'history_size': 10, 
-        'uploaded_file': None,
+        "config_applied": False,
+        "config": None,
+        "selected_model": config_yaml["model"],
+        "selected_system": options["system_types"][0],
+        "selected_chain_type": options["chain_types"][0],
+        "selected_temperature": 0.2,
+        "selected_embedding_model": options["embedding_models"][0],
+        "selected_splitter_type": options["splitter_types"][0],
+        "chunk_size": 2000,
+        "history": "On",
+        "history_size": 10,
+        "uploaded_file": None,
     }
 
     initialize_session_state(defaults)
@@ -154,16 +156,16 @@ def main():
     mode = st.sidebar.radio("Выберите режим:", ("Чат", "Поиск по картам 2ГИС"))
 
     # Применяем конфигурацию сразу без выбора
-    if not st.session_state['config_applied']:
+    if not st.session_state["config_applied"]:
         apply_configuration()
     else:
         display_banner_and_title()
         if mode == "Поиск по картам 2ГИС":
-            st.session_state['config']['mode'] = '2Gis'
-            chat_interface(st.session_state['config'])
+            st.session_state["config"]["mode"] = "2Gis"
+            chat_interface(st.session_state["config"])
         else:
-            st.session_state['config']['mode'] = 'Chat'
-            chat_interface(st.session_state['config'])
+            st.session_state["config"]["mode"] = "Chat"
+            chat_interface(st.session_state["config"])
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 from twocaptcha import TwoCaptcha
 
+
 def construct_aviasales_url(
     from_city: str,
     to_city: str,
@@ -39,6 +40,7 @@ def construct_aviasales_url(
     except Exception as e:
         print(f"Error constructing URL: {e}")
         return None
+
 
 def get_llm_response(prompt):
     """Get response from LLM"""
@@ -74,7 +76,8 @@ def get_llm_response(prompt):
         return response.json()["choices"][0]["message"]["content"]
     else:
         raise Exception(f"Failed to get LLM response {response}")
-    
+
+
 # def process_query(self, user_query: str) -> str:
 #     """Process user query and return formatted response"""
 #     analysis_prompt = f"""
@@ -86,7 +89,7 @@ def get_llm_response(prompt):
 #     5. What is the preferred travel class (economy - '' /comfort - 'w'/business - 'c'/first - 'f')? If not mentioned, assume economy - ''
 #     6. Are there any specific interests or preferences mentioned?
 #     7. What is the budget level (budget/business/vip)?
-#     Provide your analysis in JSON format only in ENGLISH with keys: "destination", "departure_city", "start_date", "end_date", 
+#     Provide your analysis in JSON format only in ENGLISH with keys: "destination", "departure_city", "start_date", "end_date",
 #     "passengers", "travel_class", "interests", "budget_level"
 #     """
 
@@ -117,21 +120,21 @@ def get_llm_response(prompt):
 #         # Generate recommendations using LLM
 #         recommendation_prompt = f"""
 #         Create a comprehensive travel plan for {analysis_data["destination"]} based on a {analysis_data["budget_level"]} budget.
-        
+
 #         Please provide three different travel plans only in RUSSIAN!!!:
 
 #         1. Budget Travel Plan (Economy class, hostels/budget hotels, public transport)
 #         - Daily budget: $50-100 for accommodation and activities
 #         - Focus on free attractions and budget-friendly options
-        
+
 #         2. Business Travel Plan (Business class, 4-star hotels, mix of transport)
 #         - Daily budget: $200-500 for accommodation and activities
 #         - Focus on comfort and efficiency
-        
+
 #         3. VIP Travel Plan (First class, 5-star hotels, private transport)
 #         - Daily budget: $1000+ for accommodation and activities
 #         - Focus on luxury experiences and exclusive access
-        
+
 #         Search results for attractions:
 #         {json.dumps(search_results.get('top_sights', {}).get('sights', []), ensure_ascii=False, indent=2)}
 
@@ -156,7 +159,7 @@ def get_llm_response(prompt):
 #         Практические советы по бронированию (например, ссылки на сайты или приложения).
 #         VITAL: Вся информация должна быть представлена в виде таблицы, чтобы клиенту было удобно сравнивать три варианта путешествия.
 #         В ТАБЛИЦЕ НЕ ПИШИ ТЕКСТ ЖИРНЫМ ШРИФТОМ ИЛИ КУРСИВОМ!!!
-        
+
 #         End with booking links and contact information for recommended services in separate text!
 
 #         At the end add the link for checking available flights at Aviasales site: {aviasales_url}. Here customer can already find the right routes of fligtes and prices
@@ -177,6 +180,7 @@ def get_llm_response(prompt):
 #     except Exception as e:
 #         print(f"Error processing query: {e}")
 #         return f"Sorry, an error occurred while processing your request: {str(e)}"
+
 
 def fetch_page_text(url: str) -> str:
     """Fetch the text content of the given URL and return it."""
@@ -273,6 +277,7 @@ def fetch_page_text(url: str) -> str:
     finally:
         driver.quit()
 
+
 def parse_aviasales(url):
     """Fetch the text content of the given URL and return it."""
     service = Service("/Users/ivan/Downloads/chromedriver-mac-arm64/chromedriver")
@@ -292,55 +297,66 @@ def parse_aviasales(url):
     # Инициализация драйвера
     driver = webdriver.Chrome(service=service, options=options)
     driver.get(url)
-    
+
     # Ждем загрузки результатов
     time.sleep(5)
-    
+
     try:
         # Находим все карточки с рейсами
         flight_cards = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='ticket']")
-        
+
         flights_data = []
-        
+
         for card in flight_cards:
             try:
                 # Получаем авиакомпанию
-                airline = card.find_element(By.CSS_SELECTOR, "[data-test-id='carrier']").text
-                
+                airline = card.find_element(
+                    By.CSS_SELECTOR, "[data-test-id='carrier']"
+                ).text
+
                 # Получаем цену
-                price = card.find_element(By.CSS_SELECTOR, "[data-test-id='price']").text
-                
+                price = card.find_element(
+                    By.CSS_SELECTOR, "[data-test-id='price']"
+                ).text
+
                 # Получаем времена вылета и прилета
-                departure_time = card.find_element(By.CSS_SELECTOR, "[data-test-id='departure-time']").text
-                arrival_time = card.find_element(By.CSS_SELECTOR, "[data-test-id='arrival-time']").text
-                
+                departure_time = card.find_element(
+                    By.CSS_SELECTOR, "[data-test-id='departure-time']"
+                ).text
+                arrival_time = card.find_element(
+                    By.CSS_SELECTOR, "[data-test-id='arrival-time']"
+                ).text
+
                 # Получаем аэропорты
-                airports = card.find_elements(By.CSS_SELECTOR, "[data-test-id='airport-code']")
+                airports = card.find_elements(
+                    By.CSS_SELECTOR, "[data-test-id='airport-code']"
+                )
                 departure_airport = airports[0].text
                 arrival_airport = airports[-1].text
-                
+
                 flight_info = {
-                    'airline': airline,
-                    'price': price,
-                    'departure_time': departure_time,
-                    'arrival_time': arrival_time,
-                    'departure_airport': departure_airport,
-                    'arrival_airport': arrival_airport
+                    "airline": airline,
+                    "price": price,
+                    "departure_time": departure_time,
+                    "arrival_time": arrival_time,
+                    "departure_airport": departure_airport,
+                    "arrival_airport": arrival_airport,
                 }
-                
+
                 flights_data.append(flight_info)
-                
+
             except Exception as e:
                 print(f"Ошибка при парсинге карточки: {e}")
                 continue
-                
+
         return flights_data
-        
+
     except Exception as e:
         print(f"Произошла ошибка: {e}")
-        
+
     finally:
         driver.quit()
+
 
 if __name__ == "__main__":
     try:

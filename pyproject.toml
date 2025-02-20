@@ -17,7 +17,10 @@ dependencies = [
     "google-search-results (>=2.4.2,<3.0.0)",
     "apscheduler (>=3.11.0,<4.0.0)",
     "openpyxl (>=3.1.5,<4.0.0)",
-    "telethon (>=1.38.1,<2.0.0)"
+    "telethon (>=1.38.1,<2.0.0)",
+    "beautifulsoup4 (>=4.13.3,<5.0.0)",
+    "selenium (>=4.28.1,<5.0.0)",
+    "twocaptcha (>=0.0.1,<0.0.2)"
 ]
 
 
