@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 
 def analyze_restaurant_request(user_input, model):
@@ -54,19 +55,20 @@ def analyze_restaurant_request(user_input, model):
     return analysis
 
 
-def get_restaurants_by_category(
-    category, json_path="/Users/ivan/Digital-Assistant-First/restaurants.json"
-):
+def get_restaurants_by_category(category, json_path=None):
     """
     Загружает локальный JSON с ресторанами и возвращает отфильтрованный список
     по введенной категории.
     """
+    if json_path is None:
+        json_path = Path(__file__).parent.parent.parent / "restaurants.json"
+
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         restaurants = data.get("restaurants", [])
     except Exception as e:
-        print("WHERE THE FILE??????", e)
+        print("No yandex-restaurants file in system", e)
         restaurants = []
 
     # Пример фильтра: если категория входит в список ресторанных категорий (без учёта регистра)
