@@ -74,15 +74,7 @@ def aviasales_request(model, config, user_input):
     tickets_need = json.loads(analysis)
     return tickets_need
 
-
-def model_response_generator(model, config):
-    """Сгенерировать ответ с использованием модели и ретривера."""
-    
-    user_input = st.session_state["messages"][-1]["content"]
-    
-    tickets_need = aviasales_request(model, config, user_input)
-
-    # Анализируем запрос на предмет ресторана
+def fetch_yndx_context(user_input, model):
     restaurant_analysis = analyze_restaurant_request(user_input, model)
     restaurant_context_text = ""
     restaurants_data = []
@@ -93,6 +85,7 @@ def model_response_generator(model, config):
             if restaurants_data:
                 # Формируем текстовый блок с информацией о найденных ресторанах
                 restaurant_context_parts = []
+                
                 for r in restaurants_data:
                     restaurant_context_parts.append(
                         f"Название: {r.get('name')}\n"
@@ -103,6 +96,19 @@ def model_response_generator(model, config):
                         f"Категории: {', '.join(r.get('categories', []))}"
                     )
                 restaurant_context_text = "\n\n".join(restaurant_context_parts)
+
+    return restaurant_context_text
+
+
+def model_response_generator(model, config):
+    """Сгенерировать ответ с использованием модели и ретривера."""
+    
+    user_input = st.session_state["messages"][-1]["content"]
+    
+    tickets_need = aviasales_request(model, config, user_input)
+
+    restaurant_context_text = fetch_yndx_context(user_input, model)
+
 
     try:
         # Формирование истории сообщений (исключая системное сообщение)
